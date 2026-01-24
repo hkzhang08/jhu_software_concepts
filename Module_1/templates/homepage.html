@@ -2,11 +2,46 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Helen Zhang (she, her, hers)</title>
+    <title>Homepage</title>
+
+    <style>
+        .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 30px;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Helen Zhang (she, her, hers)</h1>
-    <h2>Sports Injury Epidemiologist at IQVIA</h2>
-    <img src="{{url_for('static', filename='HZ.jpg')}}" align="middle" style="width:100px; height:100px;">
+    <h1 style="text-align:center;">Helen Zhang (she, her, hers)</h1>
+    <h2 style="text-align:center;">Sports Injury Epidemiologist at IQVIA</h2>
+
+    <strong><nav>
+        <ul class="menu">
+            <li><a href="{{ url_for('homepage')}}">Overview</a></li>
+            <li><a href="{{ url_for('contact')}}">Contact</a></li>
+            <li><a href="{{ url_for('projects')}}">Projects</a></li>
+        </ul>
+    </nav></strong>
+
+    <div class="container">
+        <div class="bio">
+            <p>
+                Test bio for review - I'm Helen and I'm pursing a masters in data science! I went to UNC Chapel Hill for undergrad (Go Heels!) and studied biostatistics through the school of public health. I currently work as a sports injury epidemiologist for the NFL and NBA at IQVIA, based in Cary, NC, through travel a decent amount for work.
+                My day-to-day role is my main reason for pursing the masters here at JHU. Most of my time involves data analytics to injury-related patterns and risk factors, then translate those findings to actionable insights for medical staff and the leagues. As the industry and complexity of sports data continues to grow, I'm excited to build on my skills to better inform and support injury prevention and reduction strategies!
+                In my free time, I love traveling and exploring new cities and spending time with friends, family, and my dog, BaoBao!
+            </p>
+        </div>
+
+        <div class="photo">
+            <img src="{{url_for('static', filename='HZ.jpg')}}"
+                 style="width:200px; height:200px;">
+        </div>
+    </div>
+
 </body>
 </html>
