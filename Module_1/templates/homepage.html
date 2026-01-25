@@ -1,26 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <style>
+        .top-nav {
+            position: fixed; /*show the bar even when you scroll*/
+            top: 0;
+            right: 0;
+            width: 100%;
+            background-color: #4B9CD3; /*set color to carolina blue*/
+            padding: 14px 24px; /* add some space around the link*/
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+        .top-nav-inner {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .top-nav a {
+            color: #ffffff;
+            text-decoration: none;
+            padding: 6px 12px;
+        }
+
+        .top-nav a:hover {
+            background-color: #3A86B8; /* darker blue to show that link is clickable*/
+        }
+
+        .top-nav a.active {
+            background-color: #E6F2FA; /* shows the highlighted current tab*/
+            color: #13294B;
+        }
+
+        body {
+            margin-top: 90px;
+        }
+    </style>
+
     <meta charset="UTF-8">
     <title>Homepage</title>
 
-    <style>
-        .container {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 30px;
-            max-width: 900px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-    </style>
-</head>
 <body>
     <nav class="top-nav">
-        <a href="{{ url_for('homepage') }}">Homepage</a>
-        <a href="{{ url_for('contact') }}">Contact</a>
-        <a href="{{ url_for('projects') }}">Projects</a>
+        <div class="top-nav-inner">
+            <a href="{{ url_for('homepage') }}"
+               class="{% if request.endpoint == 'homepage' %}active{% endif %}">
+                Homepage
+            </a>
+
+            <a href="{{ url_for('contact') }}"
+               class="{% if request.endpoint == 'contact' %}active{% endif %}">
+                Contact Info
+            </a>
+
+            <a href="{{ url_for('projects') }}"
+               class="{% if request.endpoint == 'projects' %}active{% endif %}">
+                Projects
+            </a>
+        </div>
     </nav>
 
     <h1 style="text-align:center;">Helen Zhang (she, her, hers)</h1>
