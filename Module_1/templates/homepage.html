@@ -1,85 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <style>
+        /* Keep navigation bar at the top of the page*/
         .top-nav {
-            position: fixed; /*show the bar even when you scroll*/
-            top: 0;
-            right: 0;
-            width: 100%;
-            background-color: #4B9CD3; /*set color to carolina blue*/
-            padding: 14px 24px; /* add some space around the link*/
-            z-index: 1000;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            position: fixed;        /* Show the bar*/
+            top: 0;     /* Keep bar to the top */
+            right: 0;     /* Keep bar also to the right */
+            width: 100%;        /* Keep the bar across the page */
+            background-color: #4B9CD3;      /* Set color to carolina blue*/
+            padding: 14px 24px;     /* Add some space around the link*/
+            z-index: 1000;      /* Move bar above my content */
         }
+
+        /* Details for my navigation links for homepage, contact, projects*/
         .top-nav-inner {
-            display: flex;
-            justify-content: flex-end;
-            gap: 15px;
-            max-width: 1200px;
-            margin: 0 auto;
+            display: flex;      /* Use flex layout */
+            justify-content: flex-end;      /* Set links to the right */
+            gap: 15px;      /* Add some space between the links */
+            margin: 0 auto;     /* Make the margins more centered */
         }
 
+        /* Updates for links */
         .top-nav a {
-            color: #ffffff;
-            text-decoration: none;
-            padding: 6px 12px;
+            color: #ffffff;     /* Text color is white */
+            text-decoration: none;      /* Remove the automatic underlining */
+            padding: 6px 12px;      /* Add some spacing */
         }
 
+        /* Updates for hovering on bar */
         .top-nav a:hover {
             background-color: #3A86B8; /* darker blue to show that link is clickable*/
         }
 
+        /* Highlight the page you're on */
         .top-nav a.active {
             background-color: #E6F2FA; /* shows the highlighted current tab*/
             color: #13294B;
         }
 
+        /* Keep the links above the long bar */
         body {
             margin-top: 90px;
         }
+
+        /* Place bio and photo side by side */
+        .container {
+            display: flex;      /* Use flex for layout */
+            gap: 40px;      /* Keep space between bio and photo */
+            max-width: 900px;       /* Max width to fit this better */
+            margin: 40px auto;      /* Center the information */
+        }
+
+        /* Spacing for bio */
+        .bio {
+            flex: 2;
+        }
+
+        /* Spacing for photo */
+        .photo {
+            flex: 2;
+        }
+
+        /* Set photo size */
+        .photo img {
+            width: 300px;
+            height: 300px;
+        }
+
     </style>
 
     <meta charset="UTF-8">
+
     <title>Homepage</title>
 
 <body>
+
     <nav class="top-nav">
+
         <div class="top-nav-inner">
-            <a href="{{ url_for('homepage') }}"
-               class="{% if request.endpoint == 'homepage' %}active{% endif %}">
+
+            <a href="{{ url_for('pages.homepage') }}"
+                class = "active">
                 Homepage
             </a>
 
-            <a href="{{ url_for('contact') }}"
-               class="{% if request.endpoint == 'contact' %}active{% endif %}">
+            <a href="{{ url_for('pages.contact') }}">
                 Contact Info
             </a>
 
-            <a href="{{ url_for('projects') }}"
-               class="{% if request.endpoint == 'projects' %}active{% endif %}">
+            <a href="{{ url_for('pages.projects') }}">
                 Projects
             </a>
+
         </div>
+
     </nav>
 
     <h1 style="text-align:center;">Helen Zhang (she, her, hers)</h1>
     <h2 style="text-align:center;">Sports Injury Epidemiologist at IQVIA</h2>
 
     <div class="container">
+
         <div class="bio">
             <p>
-                Test bio for review - I'm Helen and I'm pursing a masters in data science! I went to UNC Chapel Hill for undergrad (Go Heels!) and studied biostatistics through the school of public health. I currently work as a sports injury epidemiologist for the NFL and NBA at IQVIA, based in Cary, NC, through travel a decent amount for work.
-                My day-to-day role is my main reason for pursing the masters here at JHU. Most of my time involves data analytics to injury-related patterns and risk factors, then translate those findings to actionable insights for medical staff and the leagues. As the industry and complexity of sports data continues to grow, I'm excited to build on my skills to better inform and support injury prevention and reduction strategies!
-                In my free time, I love traveling and exploring new cities and spending time with friends, family, and my dog, BaoBao!
+                Hi, I’m Helen! I work in sports injury epidemiology with the NFL and NBA at IQVIA and I’m currently pursuing my master’s in data science at Johns Hopkins. I studied biostatistics at UNC–Chapel Hill (go Heels!) and love using data to uncover patterns that help medical staff keep athletes healthy. In my free time, I’m usually traveling, trying new restaurants, with my family or friends, or hanging out with my dog, BaoBao.
             </p>
         </div>
 
         <div class="photo">
             <img src="{{url_for('static', filename='HZ.jpg')}}"
                  style="width:200px; height:200px;">
+
         </div>
+
     </div>
 
 </body>
+
 </html>

@@ -1,66 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <style>
+        /* Keep navigation bar at the top of the page*/
         .top-nav {
-            position: fixed; /*show the bar even when you scroll*/
-            top: 0;
-            right: 0;
-            width: 100%;
-            background-color: #4B9CD3; /*set color to carolina blue*/
-            padding: 14px 24px; /* add some space around the link*/
-            z-index: 1000;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            position: fixed;        /* Show the bar*/
+            top: 0;     /* Keep bar to the top */
+            right: 0;     /* Keep bar also to the right */
+            width: 100%;        /* Keep the bar across the page */
+            background-color: #4B9CD3;      /* Set color to carolina blue*/
+            padding: 14px 24px;     /* Add some space around the link*/
+            z-index: 1000;      /* Move bar above my content */
         }
+
+        /* Details for my navigation links for homepage, contact, projects*/
         .top-nav-inner {
-            display: flex;
-            justify-content: flex-end;
-            gap: 15px;
-            max-width: 1200px;
-            margin: 0 auto;
+            display: flex;      /* Use flex layout */
+            justify-content: flex-end;      /* Set links to the right */
+            gap: 15px;      /* Add some space between the links */
+            margin: 0 auto;     /* Make the margins more centered */
         }
 
+        /* Updates for links */
         .top-nav a {
-            color: #ffffff;
-            text-decoration: none;
-            padding: 6px 12px;
+            color: #ffffff;     /* Text color is white */
+            text-decoration: none;      /* Remove the automatic underlining */
+            padding: 6px 12px;      /* Add some spacing */
         }
 
+        /* Updates for hovering on bar */
         .top-nav a:hover {
             background-color: #3A86B8; /* darker blue to show that link is clickable*/
         }
 
+        /* Highlight the page you're on */
         .top-nav a.active {
             background-color: #E6F2FA; /* shows the highlighted current tab*/
             color: #13294B;
         }
 
+        /* Keep the links above the long bar */
         body {
             margin-top: 90px;
         }
+
     </style>
 
     <meta charset="UTF-8">
+
     <title>Contact Information</title>
 
 <body>
+
     <nav class="top-nav">
+
         <div class="top-nav-inner">
-            <a href="{{ url_for('homepage') }}"
-               class="{% if request.endpoint == 'homepage' %}active{% endif %}">
+
+            <a href="{{ url_for('pages.homepage') }}">
                 Homepage
             </a>
 
-            <a href="{{ url_for('contact') }}"
-               class="{% if request.endpoint == 'contact' %}active{% endif %}">
+            <a href="{{ url_for('pages.contact') }}"
+               class="active">
                 Contact Info
             </a>
 
-            <a href="{{ url_for('projects') }}"
-               class="{% if request.endpoint == 'projects' %}active{% endif %}">
+            <a href="{{ url_for('pages.projects') }}">
                 Projects
             </a>
         </div>
+
     </nav>
 
     <h1>Contact Information</h1>
@@ -76,5 +87,7 @@
             linkedin.com/in/helenzhang121
         </a>
     </p>
+
 </body>
+
 </html>

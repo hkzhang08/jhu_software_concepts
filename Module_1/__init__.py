@@ -8,12 +8,12 @@ Email:         hzhan308@jh.edu
 
 
 
-# Skills: Flask, HTML, Searching Methods, Data Cleaning, JSON Data Object Storage
-
-
-# Import html file for home page (include name, position, bio, picture)
+# Import flask and blueprint for my website
 from flask import Flask
-from Module_1.pages import pages
+from pages import pages
 
+# Setup app
 app = Flask(__name__)
+
+# Register the blueprint with flask
 app.register_blueprint(pages)
