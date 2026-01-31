@@ -12,33 +12,54 @@ USER_AGENT = "Mozilla/5.0 (compatible; zhang/1.0)"
 AGENT = "zhang"
 
 
-
 def url_check():
-    # Confirm the robot.txt file permits scraping
+    """
+    Purpose: Confirm the robot.txt file allows scraping of site/url
+    """
 
-    parser = robotparser.RobotFileParser(URL)
+    # Join robots.txt URL and run it through the parser
+    parser = robotparser.RobotFileParser()
     parser.set_url(parse.urljoin(URL, 'robots.txt'))
+
+    # Reading the parser
     parser.read()
+
+    # Print that robots.txt was checked
+    print("Fetch results: robots.txt checked")
+
+    # Return parser to check URLs
     return parser
 
 
 def check_url (page_url, parser):
-    if not parser.can_fetch(USER_AGENT, page_url):
+    """
+    Purpose: Check if URL can be fetched. If so, then parse the HTML using BeautifulSoup
+    """
+
+    # Check if robots.txt allows for agent to fetch the URL (T/F)
+    allowed = parser.can_fetch(USER_AGENT, page_url)
+    print(f"Fetch results: robots.txt check - {allowed}")
+
+    # If not allowed to fetch, then do not scrape URL
+    if not allowed:
         print("Fetch results: NOT allowed to fetch URL")
         return None
 
+    # Review of any HTTP errors
     try:
-        # Create user header to avoid 403 error
+        # Create user header to avoid 403 error when scrapping
         new_header = request.Request(page_url,
             headers={"User-Agent": USER_AGENT})
 
+        # Requests and decodes the HTML
         with request.urlopen(new_header) as response:
             html = response.read().decode("utf-8")
 
+        # Converting HTML into object
         soup = BeautifulSoup(html, "html.parser")
         return soup
-        # print(html[:50000])
 
+    # Print any errors that occurred
     except error.HTTPError as err:
         print(f"An error has occurred - {err}")
         return None
@@ -202,7 +223,7 @@ def pull_pages(target_n= 50, start_page=1):
         page += 1
         time.sleep(10)
 
-    with open("applicant_data.json", "w") as f:
+    with open("Module_2/applicant_data.json", "w") as f:
         json.dump(all_records, f, indent=2)
 
     print("Finished. Total records saved:", num_rec)
