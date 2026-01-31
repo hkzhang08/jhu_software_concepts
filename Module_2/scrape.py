@@ -1,34 +1,36 @@
 
 from urllib import parse, robotparser, error, request
 import re
-from bs4 import BeautifulSoup
 import json
 import time
+from bs4 import BeautifulSoup
 
-url = "https://www.thegradcafe.com/"
-user_agent = "Mozilla/5.0 (compatible; zhang/1.0)"
-agent = "zhang"
+
+
+URL = "https://www.thegradcafe.com/"
+USER_AGENT = "Mozilla/5.0 (compatible; zhang/1.0)"
+AGENT = "zhang"
 
 
 
 def url_check():
     # Confirm the robot.txt file permits scraping
 
-    parser = robotparser.RobotFileParser(url)
-    parser.set_url(parse.urljoin(url, 'robots.txt'))
+    parser = robotparser.RobotFileParser(URL)
+    parser.set_url(parse.urljoin(URL, 'robots.txt'))
     parser.read()
     return parser
 
 
 def check_url (page_url, parser):
-    if not parser.can_fetch(user_agent, page_url):
+    if not parser.can_fetch(USER_AGENT, page_url):
         print("Fetch results: NOT allowed to fetch URL")
         return None
 
     try:
         # Create user header to avoid 403 error
         new_header = request.Request(page_url,
-            headers={"User-Agent": user_agent})
+            headers={"User-Agent": USER_AGENT})
 
         with request.urlopen(new_header) as response:
             html = response.read().decode("utf-8")
@@ -83,7 +85,7 @@ def scrape_data(soup):
             # University
             record["university"] = tds[0].get_text(strip=True)
 
-            # Program name and masters/phd
+            # Program name and masters/PhD
             spans = tds[1].find_all("span")
             if len(spans) >= 1:
                 record["program_name"] = spans[0].get_text(strip=True)
@@ -166,8 +168,8 @@ def scrape_data(soup):
 
 def create_pages(page_num):
     if page_num <= 1:
-        return parse.urljoin(url, "survey/")
-    return parse.urljoin(url, f"survey/?page={page_num}")
+        return parse.urljoin(URL, "survey/")
+    return parse.urljoin(URL, f"survey/?page={page_num}")
 
 
 
