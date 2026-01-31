@@ -21,7 +21,7 @@ def url_check():
 
 
 def check_url (page_url, parser):
-    if not parser.can_fetch(agent, url):
+    if not parser.can_fetch(user_agent, page_url):
         print("Fetch results: NOT allowed to fetch URL")
         return None
 
@@ -171,37 +171,37 @@ def create_pages(page_num):
 
 
 
-def pull_pages(target_n= 50, start_page=1, per_page=20):
+def pull_pages(target_n= 50, start_page=1):
     robot = url_check()
     page = start_page
     num_rec = 0
+    all_records = []
 
-    with open("gradcafe_results.jsonl", "w") as f:
+    while num_rec < target_n:
+        page_url = create_pages(page)
 
-        while num_rec < target_n:
-            page_url = create_pages(page)
-            soup = check_url(page_url, robot)
+        soup = check_url(page_url, robot)
+        if soup is None:
+            break
 
-            if soup is None:
+        page_records = scrape_data(soup)
+        if not page_records:
+            break
+
+        for record in page_records:
+            if num_rec >= target_n:
                 break
+            all_records.append(record)
 
-            page_records = scrape_data(soup)
+            num_rec += 1
 
-            if not page_records:
-                break
+        print(f"Page {page}: saved {num_rec}")
 
-            for record in page_records:
+        page += 1
+        time.sleep(10)
 
-                if num_rec >= target_n:
-                    break
-
-                f.write(json.dumps(record) + "\n")
-                num_rec += 1
-
-            print(f"Page {page}: saved {num_rec}")
-
-            page += 1
-            time.sleep(10)
+    with open("applicant_data.json", "w") as f:
+        json.dump(all_records, f, indent=2)
 
     print("Finished. Total records saved:", num_rec)
 
