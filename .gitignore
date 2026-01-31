@@ -3,3 +3,8 @@
 ../.DS_Store
 __pycache__/
 pages/__pycache__/
+__pycache__/
+*.pyc
+.huggingface/
+.cache/
+*.gguf
