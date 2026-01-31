@@ -8,3 +8,5 @@ pages/__pycache__/
 .cache/
 *.gguf
 Module_2/models/
+.venv/
+Module_2/.venv/
