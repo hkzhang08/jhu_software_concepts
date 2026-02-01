@@ -10,10 +10,12 @@ Email:         hzhan308@jh.edu
 
 import json
 
-# Save file names for easy reference
+# Save file name for easy reference
 SCRAPED_FILE = "Module_2/applicant_data.json"
-PROGRAM_FILE = "Module_2/applicant_data2.json"
 
+
+# Options for missing data
+UNAVAILABLE = {"", "n/a", "na", "none", "null", "nan"}
 
 def load_data(file):
     """
@@ -23,6 +25,23 @@ def load_data(file):
         return json.load(f)
 
 
+def is_missing(value):
+    """
+    Purpose: flag program name or university if missing
+    """
+
+    # Check if value is none
+    if value is None:
+        return True
+
+    # Check if value is not none but options similar to none
+    if isinstance(value, str):
+        return value.strip().lower() in UNAVAILABLE
+
+    # Cases where value is not missing
+    return False
+
+
 def clean_data(rows):
     """
     Purpose: create a "program" field for each record from program name and university
@@ -30,6 +49,7 @@ def clean_data(rows):
 
     # Initialize list
     cleaned = []
+    remove = 0
 
     # Loop through each record
     for row in rows:
@@ -37,6 +57,11 @@ def clean_data(rows):
         # Pull program name and university from data
         program_name = (row.get("program_name") or "").strip()
         university = (row.get("university") or "").strip()
+
+        # remove cases where program name or university is missing (not valid)
+        if is_missing(program_name) or is_missing(university):
+            remove += 1
+            continue
 
         # Combine into a program field
         program = f"{program_name}, {university}".strip(", ").strip()
@@ -46,6 +71,7 @@ def clean_data(rows):
         new_row["program"] = program
         cleaned.append(new_row)
 
+    print("Records removed due to missing program/university:", remove)
     # Return the list of cleaned records
     return cleaned
 
@@ -68,11 +94,7 @@ def main():
     # Clean and add new program field
     cleaned_rows = clean_data(raw_rows)
     # Save as a new JSON file
-    save_data(cleaned_rows, PROGRAM_FILE)
-
-    # Print confirmation and example that it worked
-    print(f"Cleaned data saved to: {PROGRAM_FILE}")
-    print("Example program field:", cleaned_rows[0]["program"])
+    save_data(cleaned_rows, SCRAPED_FILE)
 
 
 # Run only if executed directly
