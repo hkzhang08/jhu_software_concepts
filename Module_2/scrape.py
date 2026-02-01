@@ -1,10 +1,18 @@
+"""
+Class:         EP 605 2256 81 - Spring 2026
+Assignment:    Module_2 - Web Scraping
+Due Date:      February 1st by 11:59AM
+Name:          Helen Zhang
+Email:         hzhan308@jh.edu
+"""
+
+
 
 from urllib import parse, robotparser, error, request
 import re
 import json
 import time
 from bs4 import BeautifulSoup
-
 
 
 URL = "https://www.thegradcafe.com/"
@@ -65,27 +73,37 @@ def check_url (page_url, parser):
         return None
 
 
-    # Use urllib to request data from Grad Cafe
-# Use beautifulSoup/regex/string search methods to find admissions data.
 def scrape_data(soup):
+    """
+    Purpose: use BeautifulSoup, regex, and string search methods to scrape data
+    """
+
+    # Store data as a list
     results = []
 
+    # Find table in the HTML to pull data
     table = soup.find("table")
     if not table:
         return results
 
+    # Find the table body for the specific cases
     tbody = table.find("tbody")
     if not tbody:
         return results
 
+    # Look through all of the table rows
     cases = tbody.find_all("tr")
     i = 0
 
+    # Loop through table rows
     while i < len(cases):
         case = cases[i]
         tds = case.find_all("td")
 
+        # Only pull records with at least 4 table rows
         if len(tds) >=4:
+
+            # Initailize the dictionary we will use
             record = {
                 "program_name": None,
                 "university": None,
@@ -103,22 +121,23 @@ def scrape_data(soup):
                 "gre_aw": None,
             }
 
-            # University
+            # Pull university
             record["university"] = tds[0].get_text(strip=True)
 
-            # Program name and masters/PhD
+            # Pull program name and masters/PhD
             spans = tds[1].find_all("span")
             if len(spans) >= 1:
                 record["program_name"] = spans[0].get_text(strip=True)
             if len(spans) >= 2:
                 record["masters_or_phd"] = spans[1].get_text(strip=True)
 
-            # Date of Information Added to Grad Café
+            # Pull date infomration was added to grad cafe
             record["date_added"] = tds[2].get_text(strip=True)
 
-            # Applicant Status + Date
+            # Pull applicant status and decision date
             decision_text = tds[3].get_text(" ", strip=True)
 
+            # Use re to separate status and date
             if decision_text:
                 decision_text = re.sub(r"\s+", " ", decision_text).strip()
 
@@ -128,37 +147,39 @@ def scrape_data(soup):
                     record["applicant_status"] = m.group("status").strip()
                     record["decision_date"] = m.group("date").strip() if m.group("date") else None
 
-            # URL link to applicant entry
+            # Pull URL link to applicant entry
             link = case.find("a", href=lambda x: x and x.startswith("/result/"))
             if link:
                 record["url"] = "https://www.thegradcafe.com" + link["href"]
 
-
+            # Look through next rows
             j = i + 1
             while j < len(cases):
                 next_tds = cases[j].find_all("td")
 
+                # Do not continue if this is a new case
                 if len(next_tds)>=4:
                     break
 
+                # Look through data in div
                 for div in cases[j].find_all("div"):
                     text = div.get_text(" ", strip=True)
                     if not text:
                         continue
 
-                    # Semester and Year of Program Start (if available)
+                    # Pull semester and year of program start (if available)
                     if re.match(r"^(Fall|Spring|Summer|Winter)\s+\d{4}$", text):
                         record["semester_year_start"] = text
 
-                    # International / American Student (if available)
+                    # Pull if International / American Student (if available)
                     elif text in ("American", "International"):
                         record["citizenship"] = text
 
-                    #GPA (if available)
+                    #Pull GPA (if available)
                     elif re.match(r"^GPA\s+[\d.]+$", text):
                         record["gpa"] = text
 
-                    # GRE Score, GRE V Score, GRE AW (if available)
+                    # Pull GRE Score, GRE V Score, GRE AW (if available)
                     elif re.match(r"^GRE\s+AW\s+[\d.]+$", text):
                         record["gre_aw"] = text
                     elif re.match(r"^GRE\s+V\s+\d+$", text):
@@ -166,7 +187,7 @@ def scrape_data(soup):
                     elif re.match(r"^GRE\s+\d+$", text):
                         record["gre"] = text
 
-                # Comments (if available)
+                # Pull Comments (if available)
                 p = cases[j].find("p")
 
                 if p and not record["comments"]:
@@ -177,40 +198,61 @@ def scrape_data(soup):
 
                 j += 1
 
+            # Store the record and then review next record
             results.append(record)
             i = j
 
+        # Not a new record - keep reviewing the next row
         else:
             i += 1
 
+    # Return all of the data
     return results
 
 
-
 def create_pages(page_num):
+    """
+    Purpose: Create the specific page URLs for GradCafe
+    """
+
+    # First page does not need page number
     if page_num <= 1:
         return parse.urljoin(URL, "survey/")
+
+    # Add page numbers after page 1
     return parse.urljoin(URL, f"survey/?page={page_num}")
 
 
 
 def pull_pages(target_n= 50, start_page=1):
+    """
+    Purpose: Pull records for each page of URL and save as JSON
+    """
+
+    # Parses through robots.txt
     robot = url_check()
+    # Track page of URL
     page = start_page
     num_rec = 0
     all_records = []
 
+    # Run until you've met your target number of records
     while num_rec < target_n:
+
+        # Create url for the specific page
         page_url = create_pages(page)
 
+        # Check robots.txt and uses BeautifulSoup to pull page
         soup = check_url(page_url, robot)
         if soup is None:
             break
 
+        # Pull rows from the page
         page_records = scrape_data(soup)
         if not page_records:
             break
 
+        # Keep adding records from the page until target n is met
         for record in page_records:
             if num_rec >= target_n:
                 break
@@ -218,22 +260,28 @@ def pull_pages(target_n= 50, start_page=1):
 
             num_rec += 1
 
+        # Check on progress for reference
         print(f"Page {page}: saved {num_rec}")
-
         page += 1
+
+        # Slow the speed of requests to ensure we can reach target n
         time.sleep(10)
 
-    with open("Module_2/applicant_data.json", "w") as f:
+    # Save the list as a JSON array
+    with open("Module_2/applicant_data.json", "w", encoding="utf-8") as f:
         json.dump(all_records, f, indent=2)
 
+    # Confirm number of records in applicant_data
     print("Finished. Total records saved:", num_rec)
 
 
-
+#
 def main():
+    """
+    Purpose: main function to run pull_pages and web scrape n records
+    """
     pull_pages(target_n=50000)
 
-
+# Run only if executed directly
 if __name__ == "__main__":
     main()
-
