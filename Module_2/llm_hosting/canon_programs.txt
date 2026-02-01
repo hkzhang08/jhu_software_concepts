@@ -287,3 +287,48 @@ Visual Arts
 Wildlife Biology
 Women’s and Gender Studies
 Writing Studies
+
+Artificial Intelligence
+Behavioral Decision Science
+Climate Policy
+Climate Science
+Clinical Neuroscience
+Clinical Science
+Computational Systems Biology
+Cyber-Physical Systems
+Data Engineering
+Development Practice
+Disaster Science and Management
+Educational Leadership
+Energy Economics
+Energy Policy
+Environmental Management
+Environmental Studies
+Global Public Policy
+Health Psychology
+High Performance Computing
+Higher Education Administration
+Immunobiology
+Integrative Biology
+International Political Economy
+International Public Policy
+Machine Learning
+Migration Studies
+Molecular Medicine
+Natural Language Processing
+Organizational Psychology
+Peace and Conflict Studies
+Personality and Social Psychology
+Political Economy
+Population Health Sciences
+Prevention Science
+Public Policy and Management
+Quantitative Biology
+Security Studies
+Social and Decision Psychology
+Structural Biology
+Sustainable Development
+Synthetic Biology
+Systems Biology
+Translational Biomedical Sciences
+Virology

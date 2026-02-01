@@ -13,9 +13,9 @@ import json
 # Save file name for easy reference
 SCRAPED_FILE = "Module_2/applicant_data.json"
 
-
 # Options for missing data
 UNAVAILABLE = {"", "n/a", "na", "none", "null", "nan"}
+
 
 def load_data(file):
     """
@@ -83,18 +83,43 @@ def save_data(rows, file):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(rows, f, indent=2)
 
+def reorder_data(row):
+    """
+    Purpose: remove program_name and university and move program to the top to
+    match assignment example
+    """
+
+    return {
+        "program": row.get("program", ""),
+        "masters_or_phd": row.get("masters_or_phd"),
+        "comments": row.get("comments"),
+        "date_added": row.get("date_added"),
+        "url": row.get("url"),
+        "applicant_status": row.get("applicant_status"),
+        "decision_date": row.get("decision_date"),
+        "semester_year_start": row.get("semester_year_start"),
+        "citizenship": row.get("citizenship"),
+        "gpa": row.get("gpa"),
+        "gre": row.get("gre"),
+        "gre_v": row.get("gre_v"),
+        "gre_aw": row.get("gre_aw"),
+    }
+
 
 def main():
     """
     Purpose: main function to add program as a new field in data
     """
 
+
     # Load the original JSON file
     raw_rows = load_data(SCRAPED_FILE)
     # Clean and add new program field
     cleaned_rows = clean_data(raw_rows)
+    # Match format of example output
+    reordered_rows = [reorder_data(row) for row in cleaned_rows]
     # Save as a new JSON file
-    save_data(cleaned_rows, SCRAPED_FILE)
+    save_data(reordered_rows, SCRAPED_FILE)
 
 
 # Run only if executed directly

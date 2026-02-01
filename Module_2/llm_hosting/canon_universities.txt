@@ -1059,3 +1059,12 @@ Fairmont State University
 West Liberty University
 Wheeling University
 Concord University
+
+A.T. Still University
+Albany Medical College
+Albert Einstein College of Medicine
+Baylor College of Medicine
+Icahn School of Medicine at Mount Sinai
+Mayo Clinic College of Medicine and Science
+Rockefeller University
+Weill Cornell Medical College
