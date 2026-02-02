@@ -1,4 +1,4 @@
-Name: Helen Zhang (hzhan308)Module 2 Assignment: Web Scraping Due on 2/1/2026 at 11:59 ESTApproach:Ê
+Name: Helen Zhang (hzhan308)Module 2 Assignment: Web Scraping Due on 2/1/2026 at 11:59 ESTApproach:
 The goal of this assignment is to scrape data from GradCafe data and then set up the dataset so that it is easier to clean using an LLM.
 
 
