@@ -13,6 +13,7 @@ import psycopg
 DSN = "dbname=grad_cafe user=zhang8 host=localhost"
 
 
+# Question 1
 # How many entries do you have in your database who have applied for Fall 2026?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -29,6 +30,7 @@ with psycopg.connect(DSN) as conn:
 print(f"Fall 2026 applicants: {fall_2025_count}\n")
 
 
+# Question 2
 # What percentage of entries are from international students (to two decimal places)?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -48,6 +50,7 @@ with psycopg.connect(DSN) as conn:
 print(f"Percentage of International Entries: {intl_pct}\n")
 
 
+# Question 3
 # What is the average GPA, GRE, GRE V, GRE AW of applicants who provide these metrics?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -77,6 +80,7 @@ print(
 )
 
 
+# Question 4
 # What is the average GPA of American students in Fall 2026?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -98,6 +102,7 @@ with psycopg.connect(DSN) as conn:
 print(f"Average GPA of Fall 2026 American Applicants: {avg_gpa_american_fall_2026}\n")
 
 
+# Question 5
 # What percent of entries for Fall 2026 are Acceptances (to two decimal places)?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -119,6 +124,7 @@ with psycopg.connect(DSN) as conn:
 print(f"Percentage of Fall 2026 Acceptances (to date): {acceptance_pct_fall_2026}\n")
 
 
+# Question 6
 # What is the average GPA of applicants who applied for Fall 2026 who are Acceptances?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -140,6 +146,7 @@ with psycopg.connect(DSN) as conn:
 print(f"Average GPA of Fall 2026 Accepted Applicants: {avg_gpa_american_fall_2026}\n")
 
 
+# Question 7
 # How many entries are from applicants who applied to JHU for a masters degrees in Computer Science?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -166,6 +173,7 @@ with psycopg.connect(DSN) as conn:
 print(f"JHU Masters of Computer Science Applicants: {jhu_ms_cs_count}\n")
 
 
+# Question 8
 # How many entries from 2026 are acceptances from applicants who applied to
 # Georgetown, MIT, Stanford, or CMU for a PhD in CS?
 with psycopg.connect(DSN) as conn:
@@ -200,6 +208,7 @@ print(
 
 
 
+# Question 9
 # Do your numbers for Q8 change if you use LLM Fields?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -233,6 +242,7 @@ print(
 
 
 # Next, come up with 2 additional questions that you are curious to answer
+# Question 10
 # How many entries by masters program are from UNC CH in Fall 2026
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
@@ -269,6 +279,7 @@ for program_name, count in rows:
 print("\n")
 
 
+# Question 11
 # How many phd biostatics or epidemiology applicants were there from UNC CH in Fall 2026 by program
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:

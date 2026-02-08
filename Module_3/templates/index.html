@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grad School Cafe Data Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-header">
+        <div class="title">Grad School Cafe Data Analysis</div>
+        <div class="rule"></div>
+      </header>
+
+      <section class="analysis">
+        <div class="section-title">Analysis</div>
+        <div class="cards">
+          {% for item in questions %}
+            <div class="card">
+              <div class="card-question">{{ item.question }}</div>
+              <div class="card-answer">
+                <div class="answer-label">Answer:</div>
+                {% if item.answer_lines %}
+                  <div class="answer-lines">
+                    {% for line in item.answer_lines %}
+                      <div class="answer-line">{{ line }}</div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="answer-text">{{ item.answer }}</div>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

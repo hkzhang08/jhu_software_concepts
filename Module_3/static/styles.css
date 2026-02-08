@@ -1,0 +1,101 @@
+:root {
+  --ink: #1a1a1a;
+  --muted: #555;
+  --card: #f2f2f2;
+  --border: #e0e0e0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: var(--ink);
+  font-family: "Georgia", "Times New Roman", serif;
+}
+
+.page {
+  max-width: 900px;
+  margin: 24px auto 60px;
+  padding: 0 16px;
+}
+
+.page-header {
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.rule {
+  height: 1px;
+  background: #333;
+  margin-top: 6px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 12px 0 10px;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 14px;
+  box-shadow: inset 0 0 0 1px #f7f7f7;
+}
+
+.card-question {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.card-answer {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.answer-label {
+  margin-bottom: 4px;
+}
+
+.answer-text {
+  margin: 2px 0;
+}
+
+.answer-lines {
+  margin-top: 4px;
+}
+
+.answer-line {
+  margin: 2px 0;
+}
+
+@media (max-width: 640px) {
+  .page {
+    margin-top: 16px;
+  }
+
+  .title {
+    font-size: 18px;
+  }
+
+  .section-title {
+    font-size: 16px;
+  }
+}
