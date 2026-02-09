@@ -8,13 +8,14 @@ Email:         hzhan308@jh.edu
 
 # Load collected data into a PostgreSQL database using psycopg
 import json
+import os
 import re
 from datetime import datetime
 import psycopg
 
 
-# LLM cleaned data from Module 2
-DATA_PATH = "llm_extend_applicant_data.json"
+# LLM cleaned data (new rows only)
+DATA_PATH = "llm_new_applicant.json"
 # Data source name
 DSN = "dbname=grad_cafe user=zhang8 host=localhost"
 
@@ -125,66 +126,77 @@ with psycopg.connect(DSN) as conn:
         # Initialize rows
         rows = []
 
-        # Load data from JSON file
-        with open(DATA_PATH) as handle:
-            for line in handle:
+        cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
+        existing_urls = {row[0] for row in cur.fetchall()}
 
-                # Skip empty lines
-                if not line.strip():
-                    continue
+        # Load data from JSON file (JSONL)
+        if not os.path.exists(DATA_PATH):
+            print(f"No file found: {DATA_PATH}")
+            rows = []
+        else:
+            with open(DATA_PATH) as handle:
+                for line in handle:
 
-                # Load JSON into dictionary
-                row = json.loads(line)
+                    # Skip empty lines
+                    if not line.strip():
+                        continue
 
-                # Build table to match assignment details
-                rows.append(
-                    (
-                        ftext(row.get("program")),
-                        ftext(row.get("comments")),
-                        fdate(row.get("date_added")),
-                        ftext(row.get("url")),
-                        ftext(row.get("applicant_status")),
-                        ftext(row.get("semester_year_start")),
-                        ftext(row.get("citizenship")),
-                        fnum(row.get("gpa")),
-                        fnum(row.get("gre")),
-                        fnum(row.get("gre_v")),
-                        fnum(row.get("gre_aw")),
-                        fdegree(row.get("masters_or_phd")),
-                        ftext(
-                            row.get("llm-generated-program")
-                            or row.get("llm_generated_program")
-                        ),
-                        ftext(
-                            row.get("llm-generated-university")
-                            or row.get("llm_generated_university")
-                        ),
+                    # Load JSON into dictionary
+                    row = json.loads(line)
+                    url = ftext(row.get("url"))
+                    if url and url in existing_urls:
+                        continue
+
+                    # Build table to match assignment details
+                    rows.append(
+                        (
+                            ftext(row.get("program")),
+                            ftext(row.get("comments")),
+                            fdate(row.get("date_added")),
+                            url,
+                            ftext(row.get("applicant_status")),
+                            ftext(row.get("semester_year_start")),
+                            ftext(row.get("citizenship")),
+                            fnum(row.get("gpa")),
+                            fnum(row.get("gre")),
+                            fnum(row.get("gre_v")),
+                            fnum(row.get("gre_aw")),
+                            fdegree(row.get("masters_or_phd")),
+                            ftext(
+                                row.get("llm-generated-program")
+                                or row.get("llm_generated_program")
+                            ),
+                            ftext(
+                                row.get("llm-generated-university")
+                                or row.get("llm_generated_university")
+                            ),
+                        )
                     )
-                )
 
         # Insert all rows into the database
-        cur.executemany(
-            """
-            INSERT INTO applicants (
-                program,
-                comments,
-                date_added,
-                url,
-                status,
-                term,
-                us_or_international,
-                gpa,
-                gre,
-                gre_v,
-                gre_aw,
-                degree,
-                llm_generated_program,
-                llm_generated_university
+        if rows:
+            cur.executemany(
+                """
+                INSERT INTO applicants (
+                    program,
+                    comments,
+                    date_added,
+                    url,
+                    status,
+                    term,
+                    us_or_international,
+                    gpa,
+                    gre,
+                    gre_v,
+                    gre_aw,
+                    degree,
+                    llm_generated_program,
+                    llm_generated_university
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                """,
+                rows,
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-            """,
-            rows,
-        )
 
     # Commit and save changes
     conn.commit()

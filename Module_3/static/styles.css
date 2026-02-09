@@ -44,6 +44,78 @@ body {
   margin: 12px 0 10px;
 }
 
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 14px 0 16px;
+}
+
+.action-card {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.action-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  flex: 1;
+}
+
+.pull-status {
+  font-size: 12.5px;
+  color: #7a1e1e;
+  margin: -6px 0 12px;
+}
+
+.pull-form {
+  margin: 0;
+  align-self: center;
+}
+
+.pull-button {
+  background: #2f2f2f;
+  color: #ffffff;
+  border: 1px solid #1f1f1f;
+  padding: 6px 14px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+}
+
+.pull-button:hover {
+  background: #1f1f1f;
+}
+
+.update-button {
+  background: #ffffff;
+  color: #1f1f1f;
+  border: 1px solid #1f1f1f;
+  padding: 6px 14px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+}
+
+.update-button:hover {
+  background: #efefef;
+}
+
+.pull-button:disabled,
+.update-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .cards {
   display: flex;
   flex-direction: column;
@@ -89,6 +161,15 @@ body {
 @media (max-width: 640px) {
   .page {
     margin-top: 16px;
+  }
+
+  .action-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pull-form {
+    align-self: flex-start;
   }
 
   .title {

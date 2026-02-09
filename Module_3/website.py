@@ -6,13 +6,193 @@ Name:          Helen Zhang
 Email:         hzhan308@jh.edu
 """
 
+# website imports
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime
 
 import psycopg
-from flask import Flask, render_template
+from flask import Flask, redirect, render_template, url_for
 
 app = Flask(__name__)
 
 DSN = "dbname=grad_cafe user=zhang8 host=localhost"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RAW_FILE = os.path.join(BASE_DIR, "applicant_data.json")
+PULL_TARGET_N = 200
+PULL_STATE = {"status": "idle", "message": ""}
+
+
+def fnum(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    match = re.search(r"[-+]?\d*\.?\d+", str(value))
+    return float(match.group(0)) if match else None
+
+
+def fdate(value):
+    if not value:
+        return None
+    cleaned = str(value).strip()
+    for fmt in ("%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def fdegree(value):
+    if not value:
+        return None
+    v = str(value).strip().lower()
+    if "phd" in v or "doctor" in v:
+        return 2.0
+    if "master" in v or v in {"ms", "ma", "msc", "mba"}:
+        return 1.0
+    return None
+
+
+def ftext(value):
+    if value is None:
+        return None
+    return str(value).replace("\x00", "")
+
+
+def ensure_applicant_table(cur):
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS applicants (
+            p_id SERIAL PRIMARY KEY,
+            program TEXT,
+            comments TEXT,
+            date_added DATE,
+            url TEXT,
+            status TEXT,
+            term TEXT,
+            us_or_international TEXT,
+            gpa DOUBLE PRECISION,
+            gre DOUBLE PRECISION,
+            gre_v DOUBLE PRECISION,
+            gre_aw DOUBLE PRECISION,
+            degree DOUBLE PRECISION,
+            llm_generated_program TEXT,
+            llm_generated_university TEXT
+        );
+        """
+    )
+
+
+def load_cleaned_data_to_db(file_path: str) -> int:
+    if not os.path.exists(file_path):
+        return 0
+
+    with open(file_path, "r", encoding="utf-8") as handle:
+        rows = json.load(handle)
+
+    with psycopg.connect(DSN) as conn:
+        with conn.cursor() as cur:
+            ensure_applicant_table(cur)
+            cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
+            existing_urls = {row[0] for row in cur.fetchall()}
+
+            inserts = []
+            for row in rows:
+                url = ftext(row.get("url"))
+                if url and url in existing_urls:
+                    continue
+                inserts.append(
+                    (
+                        ftext(row.get("program")),
+                        ftext(row.get("comments")),
+                        fdate(row.get("date_added")),
+                        url,
+                        ftext(row.get("applicant_status")),
+                        ftext(row.get("semester_year_start")),
+                        ftext(row.get("citizenship")),
+                        fnum(row.get("gpa")),
+                        fnum(row.get("gre")),
+                        fnum(row.get("gre_v")),
+                        fnum(row.get("gre_aw")),
+                        fdegree(row.get("masters_or_phd")),
+                        None,
+                        None,
+                    )
+                )
+
+            if inserts:
+                cur.executemany(
+                    """
+                    INSERT INTO applicants (
+                        program,
+                        comments,
+                        date_added,
+                        url,
+                        status,
+                        term,
+                        us_or_international,
+                        gpa,
+                        gre,
+                        gre_v,
+                        gre_aw,
+                        degree,
+                        llm_generated_program,
+                        llm_generated_university
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    """,
+                    inserts,
+                )
+
+        conn.commit()
+
+    return len(inserts)
+
+
+def run_pull_pipeline():
+    try:
+        PULL_STATE["status"] = "running"
+        PULL_STATE["message"] = "Pull in progress..."
+        if os.path.dirname(RAW_FILE):
+            os.makedirs(os.path.dirname(RAW_FILE), exist_ok=True)
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                f"import scrape; scrape.pull_pages(target_n={PULL_TARGET_N})",
+            ],
+            cwd=BASE_DIR,
+            check=True,
+        )
+        subprocess.run(
+            [sys.executable, os.path.join(BASE_DIR, "clean.py")],
+            cwd=BASE_DIR,
+            check=True,
+        )
+        load_result = subprocess.run(
+            [sys.executable, os.path.join(BASE_DIR, "load_data.py")],
+            cwd=BASE_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        inserted = None
+        match = re.search(r"Inserted rows:\s*(\d+)", load_result.stdout)
+        if match:
+            inserted = int(match.group(1))
+        PULL_STATE["status"] = "done"
+        if inserted is None:
+            PULL_STATE["message"] = "Pull complete. Database updated."
+        else:
+            PULL_STATE["message"] = f"Pull complete. Inserted {inserted} new rows."
+    except Exception as exc:
+        PULL_STATE["status"] = "error"
+        PULL_STATE["message"] = f"Pull failed: {exc}"
 
 
 def fetch_metrics() -> dict:
@@ -238,6 +418,22 @@ def fetch_metrics() -> dict:
     }
 
 
+@app.route("/pull-data", methods=["POST"])
+def pull_data():
+    if PULL_STATE["status"] == "running":
+        return redirect(url_for("index"))
+
+    run_pull_pipeline()
+    return redirect(url_for("index"))
+
+
+@app.route("/update-analysis", methods=["POST"])
+def update_analysis():
+    if PULL_STATE["status"] == "running":
+        return redirect(url_for("index"))
+    return redirect(url_for("index"))
+
+
 @app.route("/")
 def index():
     metrics = fetch_metrics()
@@ -311,7 +507,7 @@ def index():
             ] or ["No rows found."],
         },
     ]
-    return render_template("index.html", questions=questions)
+    return render_template("index.html", questions=questions, pull_state=PULL_STATE)
 
 
 if __name__ == "__main__":
