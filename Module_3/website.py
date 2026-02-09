@@ -6,19 +6,21 @@ Name:          Helen Zhang
 Email:         hzhan308@jh.edu
 """
 
-# website imports
+
+# Imports to display analysis results from a PostgreSQL database
 import json
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
-
 import psycopg
 from flask import Flask, redirect, render_template, url_for
 
+# Create flask app
 app = Flask(__name__)
 
+# Create connections and paths to database
 DSN = "dbname=grad_cafe user=zhang8 host=localhost"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_FILE = os.path.join(BASE_DIR, "applicant_data.json")
@@ -27,44 +29,84 @@ PULL_STATE = {"status": "idle", "message": ""}
 
 
 def fnum(value):
+    """
+    Purpose: Convert values to a float if needed
+    """
+
+    # Set to none if already missing
     if value is None:
         return None
+
+    # If numeric, covert to float
     if isinstance(value, (int, float)):
         return float(value)
+
+    # Clean the number within the string if needed
     match = re.search(r"[-+]?\d*\.?\d+", str(value))
     return float(match.group(0)) if match else None
 
 
 def fdate(value):
+    """
+    Purpose: Convert date strings to date objects
+    """
+
+    # If missing, then keep as none
     if not value:
         return None
+
+    # Try different date formats as needed
     cleaned = str(value).strip()
     for fmt in ("%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
         try:
             return datetime.strptime(cleaned, fmt).date()
         except ValueError:
             continue
+
+    # If not date, then return none
     return None
 
 
 def fdegree(value):
+    """
+    Purpose: update PhDs (2.0) and Masters (1.0) to floats
+    """
+
+    # If not value, then return none
     if not value:
         return None
+
+    # Update phd/doctorate to 2.0
     v = str(value).strip().lower()
     if "phd" in v or "doctor" in v:
         return 2.0
+
+    # Update masters to 1.0
     if "master" in v or v in {"ms", "ma", "msc", "mba"}:
         return 1.0
+
+    # Return none if not matched above
     return None
 
 
 def ftext(value):
+    """
+    Purpose: Convert text values to string
+    """
+
+    # Return none if missing
     if value is None:
         return None
+
+    # Return string and remove null bytes
     return str(value).replace("\x00", "")
 
 
 def ensure_applicant_table(cur):
+    """
+    Purpose: create applicants table if not exists
+    """
+
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS applicants (
@@ -89,23 +131,37 @@ def ensure_applicant_table(cur):
 
 
 def load_cleaned_data_to_db(file_path: str) -> int:
+    """
+    Purpose: load cleaned records from a JSON file into the applicants table
+    """
+
+    # If file does not exist, return 0
     if not os.path.exists(file_path):
         return 0
 
+    # Open JSON file and load records
     with open(file_path, "r", encoding="utf-8") as handle:
         rows = json.load(handle)
 
+    # Insert new rows into PostgreSQL database
     with psycopg.connect(DSN) as conn:
         with conn.cursor() as cur:
+
+            # Check if table exists
             ensure_applicant_table(cur)
+
+            # Create set of URLS to remove duplicates
             cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
             existing_urls = {row[0] for row in cur.fetchall()}
 
+            # Check urls of data
             inserts = []
             for row in rows:
                 url = ftext(row.get("url"))
                 if url and url in existing_urls:
                     continue
+
+                # Insert new rows, insert none for llm generated fields
                 inserts.append(
                     (
                         ftext(row.get("program")),
@@ -125,6 +181,7 @@ def load_cleaned_data_to_db(file_path: str) -> int:
                     )
                 )
 
+            # Bulk insert new rows
             if inserts:
                 cur.executemany(
                     """
@@ -149,17 +206,28 @@ def load_cleaned_data_to_db(file_path: str) -> int:
                     inserts,
                 )
 
+        # Commit and save new records
         conn.commit()
 
+    # Return number of new records inserted
     return len(inserts)
 
 
 def run_pull_pipeline():
+    """
+    Purpose: Run the full data refresh pipeline
+    """
+
+    # Update status of data pull
     try:
         PULL_STATE["status"] = "running"
         PULL_STATE["message"] = "Pull in progress..."
+
+        # Check that output directory exists
         if os.path.dirname(RAW_FILE):
             os.makedirs(os.path.dirname(RAW_FILE), exist_ok=True)
+
+        # Call on scrape.py and use subprocesses to run
         subprocess.run(
             [
                 sys.executable,
@@ -169,6 +237,8 @@ def run_pull_pipeline():
             cwd=BASE_DIR,
             check=True,
         )
+
+        # Run the clean.py script to clean the raw data and then load_data.py to insert into the database
         subprocess.run(
             [sys.executable, os.path.join(BASE_DIR, "clean.py")],
             cwd=BASE_DIR,
@@ -181,23 +251,34 @@ def run_pull_pipeline():
             capture_output=True,
             text=True,
         )
+
+        # Parse output to determine number of rows inserted
         inserted = None
         match = re.search(r"Inserted rows:\s*(\d+)", load_result.stdout)
         if match:
             inserted = int(match.group(1))
+
+        # When pulling data is done
         PULL_STATE["status"] = "done"
         if inserted is None:
             PULL_STATE["message"] = "Pull complete. Database updated."
         else:
             PULL_STATE["message"] = f"Pull complete. Inserted {inserted} new rows."
+
+    # Store any errors for the website
     except Exception as exc:
         PULL_STATE["status"] = "error"
         PULL_STATE["message"] = f"Pull failed: {exc}"
 
 
 def fetch_metrics() -> dict:
+    """
+    Purpose: query the database to answer the questions
+    """
+
     with psycopg.connect(DSN) as conn:
         with conn.cursor() as cur:
+
             # Question 1
             cur.execute(
                 """
@@ -400,6 +481,7 @@ def fetch_metrics() -> dict:
             )
             unc_phd_program_rows = cur.fetchall()
 
+    # Return the answers to the questions
     return {
         "fall_2026_count": fall_2026_count,
         "intl_pct": intl_pct,
@@ -420,23 +502,44 @@ def fetch_metrics() -> dict:
 
 @app.route("/pull-data", methods=["POST"])
 def pull_data():
+    """
+    Purpose: Creates and updates"Pull Data" button
+    """
+
+    # If data is running, do not start a second data pull
     if PULL_STATE["status"] == "running":
         return redirect(url_for("index"))
 
+    # Run the pipeline to pull data and update the database
     run_pull_pipeline()
+
+    # Update the website
     return redirect(url_for("index"))
 
 
 @app.route("/update-analysis", methods=["POST"])
 def update_analysis():
+    """
+    Purpose: Creates the "Update Analysis" button
+    """
+
+    # If data is running, do not update analysis
     if PULL_STATE["status"] == "running":
         return redirect(url_for("index"))
+
+    # Refresh data
     return redirect(url_for("index"))
 
 
 @app.route("/")
 def index():
+    """
+    Purpose: Pull the lastest answers from the database
+    """
+
     metrics = fetch_metrics()
+
+    # Format the SQL questions
     questions = [
         {
             "question": "How many entries do you have in your database who have applied for Fall 2026?",
@@ -510,5 +613,6 @@ def index():
     return render_template("index.html", questions=questions, pull_state=PULL_STATE)
 
 
+# Run only if executed directly
 if __name__ == "__main__":
     app.run(debug=True)

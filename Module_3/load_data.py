@@ -6,6 +6,7 @@ Name:          Helen Zhang
 Email:         hzhan308@jh.edu
 """
 
+
 # Load collected data into a PostgreSQL database using psycopg
 import json
 import os
@@ -14,9 +15,9 @@ from datetime import datetime
 import psycopg
 
 
-# LLM cleaned data (new rows only)
+# Path to LLM cleaned JSON data (new rows only)
 DATA_PATH = "llm_new_applicant.json"
-# Data source name
+# Data source name for postgreSQL
 DSN = "dbname=grad_cafe user=zhang8 host=localhost"
 
 
@@ -24,6 +25,7 @@ def fnum(value):
     """
     Purpose: Convert values to a float if needed
     """
+
     # Set to none if already missing
     if value is None:
         return None
@@ -48,7 +50,7 @@ def fdate(value):
 
     cleaned = str(value).strip()
 
-    # Try different date formats as neede
+    # Try different date formats as needed
     for fmt in ("%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
         try:
             return datetime.strptime(cleaned, fmt).date()
@@ -94,13 +96,13 @@ def ftext(value):
     return str(value).replace("\x00", "")
 
 
-# Create PostgreSQL database
+# Create / connect to the PostgreSQL database
 with psycopg.connect(DSN) as conn:
 
     # Create cursor to run SQL
     with conn.cursor() as cur:
 
-        # Create table for applicant_data and p_id
+        # Create table for applicant_data and p_id if it doesnt already exist
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS applicants (
@@ -126,14 +128,16 @@ with psycopg.connect(DSN) as conn:
         # Initialize rows
         rows = []
 
+        # Pull URLS already in the database
         cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
         existing_urls = {row[0] for row in cur.fetchall()}
 
-        # Load data from JSON file (JSONL)
+        # Check if input file exists
         if not os.path.exists(DATA_PATH):
             print(f"No file found: {DATA_PATH}")
             rows = []
         else:
+            # Read in the file
             with open(DATA_PATH) as handle:
                 for line in handle:
 
@@ -147,7 +151,7 @@ with psycopg.connect(DSN) as conn:
                     if url and url in existing_urls:
                         continue
 
-                    # Build table to match assignment details
+                    # Build table / append cleaned values to match assignment details
                     rows.append(
                         (
                             ftext(row.get("program")),
@@ -173,7 +177,7 @@ with psycopg.connect(DSN) as conn:
                         )
                     )
 
-        # Insert all rows into the database
+        # Insert cleaned rows into the database
         if rows:
             cur.executemany(
                 """
