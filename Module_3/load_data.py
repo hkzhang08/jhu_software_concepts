@@ -17,6 +17,8 @@ import psycopg
 
 # Path to LLM cleaned JSON data (new rows only)
 DATA_PATH = "llm_new_applicant.json"
+ORIGINAL_PATH = "llm_extend_applicant_data.json"
+
 # Data source name for postgreSQL
 DSN = "dbname=grad_cafe user=zhang8 host=localhost"
 
@@ -128,28 +130,27 @@ with psycopg.connect(DSN) as conn:
         # Initialize rows
         rows = []
 
-        # Pull URLS already in the database
+        # Pull URLs already in the database
         cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
         existing_urls = {row[0] for row in cur.fetchall()}
+        seen_urls = set(existing_urls)
 
-        # Check if input file exists
-        if not os.path.exists(DATA_PATH):
-            print(f"No file found: {DATA_PATH}")
-            rows = []
-        else:
-            # Read in the file
-            with open(DATA_PATH) as handle:
+        def load_from_file(path):
+            if not os.path.exists(path):
+                print(f"No file found: {path}")
+                return
+            with open(path) as handle:
                 for line in handle:
-
                     # Skip empty lines
                     if not line.strip():
                         continue
-
                     # Load JSON into dictionary
                     row = json.loads(line)
                     url = ftext(row.get("url"))
-                    if url and url in existing_urls:
+                    if url and url in seen_urls:
                         continue
+                    if url:
+                        seen_urls.add(url)
 
                     # Build table / append cleaned values to match assignment details
                     rows.append(
@@ -176,6 +177,10 @@ with psycopg.connect(DSN) as conn:
                             ),
                         )
                     )
+
+        # Load original master file first, then new rows file
+        load_from_file(ORIGINAL_PATH)
+        load_from_file(DATA_PATH)
 
         # Insert cleaned rows into the database
         if rows:
