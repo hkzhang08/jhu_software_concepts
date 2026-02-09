@@ -593,7 +593,8 @@ def index():
             ),
         },
         {
-            "question": "How many applicants by masters program are from UNC CH in Fall 2026?",
+            "question": "For UNC Chapel Hill Fall 2026 semester, how many accepted Master’s applicants "
+                        "were there by program?",
             "answer_lines": [
                 f"{program_name or 'Unknown'}: {count}"
                 for program_name, count in metrics["unc_masters_program_rows"]
@@ -601,8 +602,8 @@ def index():
         },
         {
             "question": (
-                "How many PhD Biostatistics or Epidemiology applicants were there from "
-                "UNC CH in Fall 2026 by program?"
+                "For UNC Chapel Hill Fall 2026 semester, how many PhD applicants in Biostatics or Epidemiology "
+                "were there by program?"
             ),
             "answer_lines": [
                 f"{program_name or 'Unknown'}: {count}"
