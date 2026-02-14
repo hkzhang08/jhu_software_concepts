@@ -1,6 +1,16 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import json
 
+import pytest
 from src import website as website
+
+pytestmark = pytest.mark.db
 
 
 class FakeCursor:
@@ -83,8 +93,8 @@ def test_pull_inserts_rows_into_empty_table(monkeypatch, tmp_path):
     app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()
-    resp = client.post("/pull-data", follow_redirects=True)
-    assert resp.status_code == 200
+    resp = client.post("/pull-data")
+    assert resp.status_code in (302, 303)
 
     assert len(table) == 1
     inserted = table[0]
@@ -92,6 +102,11 @@ def test_pull_inserts_rows_into_empty_table(monkeypatch, tmp_path):
     assert inserted[3] is not None  # url
     assert inserted[4] is not None  # status
     assert inserted[5] is not None  # term
+
+
+def test_load_cleaned_data_missing_file_returns_zero(tmp_path):
+    missing_path = tmp_path / "missing.json"
+    assert website.load_cleaned_data_to_db(str(missing_path)) == 0
 
 
 def test_duplicate_rows_do_not_insert_twice(monkeypatch, tmp_path):

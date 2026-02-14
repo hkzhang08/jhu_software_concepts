@@ -167,13 +167,16 @@ def load_cleaned_data_to_db(file_path: str) -> int:
             # Create set of URLS to remove duplicates
             cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
             existing_urls = {row[0] for row in cur.fetchall()}
+            seen_urls = set(existing_urls)
 
             # Check urls of data
             inserts = []
             for row in rows:
                 url = ftext(row.get("url"))
-                if url and url in existing_urls:
+                if url and url in seen_urls:
                     continue
+                if url:
+                    seen_urls.add(url)
 
                 # Insert new rows, insert none for llm generated fields
                 inserts.append(

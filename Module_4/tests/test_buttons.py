@@ -1,8 +1,18 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import json
 import os
 from types import SimpleNamespace
 
+import pytest
 from src import website as website
+
+pytestmark = pytest.mark.buttons
 
 
 def test_post_pull_data_triggers_loader_with_scraped_rows(monkeypatch, tmp_path):
@@ -49,6 +59,32 @@ def test_post_update_analysis_returns_200_when_not_busy():
 
     resp = client.post("/update-analysis", follow_redirects=True)
     assert resp.status_code == 200
+
+
+def test_run_pull_pipeline_sets_default_message(monkeypatch, tmp_path):
+    def fake_subprocess_run(args, cwd=None, check=None, capture_output=False, text=False):
+        if len(args) >= 2 and os.path.basename(args[1]) == "load_data.py":
+            return SimpleNamespace(stdout="no insert info")
+        return SimpleNamespace(stdout="")
+
+    monkeypatch.setattr(website, "RAW_FILE", str(tmp_path / "applicant_data.json"))
+    monkeypatch.setattr(website.subprocess, "run", fake_subprocess_run)
+
+    website.run_pull_pipeline()
+    assert website.PULL_STATE["status"] == "done"
+    assert website.PULL_STATE["message"] == "Pull complete. Database updated."
+
+
+def test_run_pull_pipeline_error_sets_status(monkeypatch, tmp_path):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(website, "RAW_FILE", str(tmp_path / "applicant_data.json"))
+    monkeypatch.setattr(website.subprocess, "run", boom)
+
+    website.run_pull_pipeline()
+    assert website.PULL_STATE["status"] == "error"
+    assert "Pull failed: boom" in website.PULL_STATE["message"]
 
 
 def test_busy_gating_update_analysis_returns_409():

@@ -6,12 +6,36 @@ Name:          Helen Zhang
 Email:         hzhan308@jh.edu
 """
 
+import sys
+from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import pytest
 from flask import Flask
 from src import website as website
+
+pytestmark = pytest.mark.web
 def test_create_app_returns_flask():
     app = website.create_app()
     assert isinstance(app, Flask)
+
+
+def test_init_main_runs_app(monkeypatch):
+    called = {}
+
+    def fake_run(self, *args, **kwargs):
+        called["kwargs"] = kwargs
+
+    monkeypatch.setattr(Flask, "run", fake_run)
+    init_path = ROOT / "src" / "__init__.py"
+    with open(init_path, "r", encoding="utf-8") as handle:
+        code = handle.read()
+    globals_dict = {"__file__": str(init_path), "__name__": "__main__", "__package__": "src"}
+    exec(compile(code, str(init_path), "exec"), globals_dict)
+    assert called["kwargs"].get("debug") is True
 
 
 def test_routes_registered():
