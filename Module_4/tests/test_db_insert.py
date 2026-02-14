@@ -1,9 +1,12 @@
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+os.environ.setdefault("DATABASE_URL", "postgresql://localhost/grad_cafe")
 
 import json
 
@@ -94,7 +97,8 @@ def test_pull_inserts_rows_into_empty_table(monkeypatch, tmp_path):
     app.config["TESTING"] = True
     client = app.test_client()
     resp = client.post("/pull-data")
-    assert resp.status_code in (302, 303)
+    assert resp.status_code == 202
+    assert resp.get_json() == {"ok": True}
 
     assert len(table) == 1
     inserted = table[0]

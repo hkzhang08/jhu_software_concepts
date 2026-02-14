@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 
 from src import scrape
 
-pytestmark = pytest.mark.scrape
+pytestmark = pytest.mark.web
 
 
 def test_url_check_calls_robotparser(monkeypatch, capsys):

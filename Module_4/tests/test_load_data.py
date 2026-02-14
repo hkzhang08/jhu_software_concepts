@@ -1,6 +1,7 @@
 import importlib
 import io
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ pytestmark = pytest.mark.db
 
 
 def _import_load_data(monkeypatch, fake_conn):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/grad_cafe")
     monkeypatch.setattr(psycopg, "connect", lambda _dsn: fake_conn)
     if "src.load_data" in sys.modules:
         del sys.modules["src.load_data"]

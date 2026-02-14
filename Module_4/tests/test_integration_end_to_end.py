@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -5,13 +6,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+os.environ.setdefault("DATABASE_URL", "postgresql://localhost/grad_cafe")
+
 import pytest
 from src import website as website
 
 pytestmark = pytest.mark.integration
 
 
-def test_end_to_end_pull_update_render_with_fake_scraper(monkeypatch):
+def test_end_to_end_pull_update_render_with_fake_scraper():
     state = {"rows": [], "db_rows": []}
 
     def fake_scraper():
@@ -90,20 +93,23 @@ def test_end_to_end_pull_update_render_with_fake_scraper(monkeypatch):
             "unc_phd_program_rows": [],
         }
 
-    monkeypatch.setattr(website, "run_pull_pipeline", fake_run_pull_pipeline)
-    monkeypatch.setattr(website, "fetch_metrics", fake_fetch_metrics)
     website.PULL_STATE["status"] = "idle"
 
-    app = website.create_app()
+    app = website.create_app(
+        run_pull_pipeline_fn=fake_run_pull_pipeline,
+        fetch_metrics_fn=fake_fetch_metrics,
+    )
     app.config["TESTING"] = True
     client = app.test_client()
 
-    resp = client.post("/pull-data", follow_redirects=True)
-    assert resp.status_code == 200
+    resp = client.post("/pull-data")
+    assert resp.status_code == 202
+    assert resp.get_json() == {"ok": True}
     assert len(state["db_rows"]) == 2
 
-    resp = client.post("/update-analysis", follow_redirects=True)
+    resp = client.post("/update-analysis")
     assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}
 
     resp = client.get("/analysis")
     assert resp.status_code == 200
@@ -113,7 +119,7 @@ def test_end_to_end_pull_update_render_with_fake_scraper(monkeypatch):
     assert "Fall 2026 Acceptance percent: 50.00" in body
 
 
-def test_update_analysis_succeeds_when_not_busy(monkeypatch):
+def test_update_analysis_succeeds_when_not_busy():
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -133,16 +139,16 @@ def test_update_analysis_succeeds_when_not_busy(monkeypatch):
         }
 
     website.PULL_STATE["status"] = "idle"
-    monkeypatch.setattr(website, "fetch_metrics", fake_metrics)
-    app = website.create_app()
+    app = website.create_app(fetch_metrics_fn=fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
 
-    resp = client.post("/update-analysis", follow_redirects=True)
+    resp = client.post("/update-analysis")
     assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}
 
 
-def test_analysis_shows_updated_metrics_with_formatted_values(monkeypatch):
+def test_analysis_shows_updated_metrics_with_formatted_values():
     state = {
         "db_rows": [
             {
@@ -200,10 +206,9 @@ def test_analysis_shows_updated_metrics_with_formatted_values(monkeypatch):
             "unc_phd_program_rows": [],
         }
 
-    monkeypatch.setattr(website, "fetch_metrics", fake_fetch_metrics)
     website.PULL_STATE["status"] = "idle"
 
-    app = website.create_app()
+    app = website.create_app(fetch_metrics_fn=fake_fetch_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
 
@@ -216,7 +221,7 @@ def test_analysis_shows_updated_metrics_with_formatted_values(monkeypatch):
     assert "Average GPA: 3.75" in body
 
 
-def test_multiple_pulls_with_overlap_respect_uniqueness(monkeypatch):
+def test_multiple_pulls_with_overlap_respect_uniqueness():
     state = {"db_rows": []}
 
     def fake_insert_rows(rows):
@@ -246,13 +251,11 @@ def test_multiple_pulls_with_overlap_respect_uniqueness(monkeypatch):
         pull_idx["value"] += 1
         fake_insert_rows(rows)
 
-    monkeypatch.setattr(website, "run_pull_pipeline", fake_run_pull_pipeline)
     website.PULL_STATE["status"] = "idle"
 
-    monkeypatch.setattr(
-        website,
-        "fetch_metrics",
-        lambda: {
+    app = website.create_app(
+        run_pull_pipeline_fn=fake_run_pull_pipeline,
+        fetch_metrics_fn=lambda: {
             "fall_2026_count": 0,
             "intl_pct": 0.0,
             "avg_gpa": 0.0,
@@ -269,16 +272,17 @@ def test_multiple_pulls_with_overlap_respect_uniqueness(monkeypatch):
             "unc_phd_program_rows": [],
         },
     )
-    app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()
 
-    resp = client.post("/pull-data", follow_redirects=True)
-    assert resp.status_code == 200
+    resp = client.post("/pull-data")
+    assert resp.status_code == 202
+    assert resp.get_json() == {"ok": True}
     assert len(state["db_rows"]) == 2
 
-    resp = client.post("/pull-data", follow_redirects=True)
-    assert resp.status_code == 200
+    resp = client.post("/pull-data")
+    assert resp.status_code == 202
+    assert resp.get_json() == {"ok": True}
     assert len(state["db_rows"]) == 3
     urls = {row.get("url") for row in state["db_rows"]}
     assert urls == {

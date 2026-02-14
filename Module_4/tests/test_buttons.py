@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -5,8 +6,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+os.environ.setdefault("DATABASE_URL", "postgresql://localhost/grad_cafe")
+
 import json
-import os
 from types import SimpleNamespace
 
 import pytest
@@ -59,27 +61,26 @@ def test_post_pull_data_triggers_loader_with_scraped_rows(monkeypatch, tmp_path)
     monkeypatch.setattr(website, "BASE_DIR", str(tmp_path))
     monkeypatch.setattr(website, "RAW_FILE", str(tmp_path / "applicant_data.json"))
     monkeypatch.setattr(website.subprocess, "run", fake_subprocess_run)
-    monkeypatch.setattr(website, "fetch_metrics", _fake_metrics)
-
     website.PULL_STATE["status"] = "idle"
-    app = website.create_app()
+    app = website.create_app(fetch_metrics_fn=_fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
 
-    resp = client.post("/pull-data", follow_redirects=True)
-    assert resp.status_code == 200
+    resp = client.post("/pull-data")
+    assert resp.status_code == 202
+    assert resp.get_json() == {"ok": True}
     assert calls == ["scrape", "clean", "load"]
 
 
-def test_post_update_analysis_returns_200_when_not_busy(monkeypatch):
+def test_post_update_analysis_returns_200_when_not_busy():
     website.PULL_STATE["status"] = "idle"
-    monkeypatch.setattr(website, "fetch_metrics", _fake_metrics)
-    app = website.create_app()
+    app = website.create_app(fetch_metrics_fn=_fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
 
-    resp = client.post("/update-analysis", follow_redirects=True)
+    resp = client.post("/update-analysis")
     assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}
 
 
 def test_run_pull_pipeline_sets_default_message(monkeypatch, tmp_path):
@@ -108,6 +109,36 @@ def test_run_pull_pipeline_error_sets_status(monkeypatch, tmp_path):
     assert "Pull failed: boom" in website.PULL_STATE["message"]
 
 
+def test_post_pull_data_returns_error_when_pipeline_fails():
+    def fake_run_pull_pipeline():
+        website.PULL_STATE["status"] = "error"
+        website.PULL_STATE["message"] = "Pull failed: boom"
+        return False
+
+    website.PULL_STATE["status"] = "idle"
+    app = website.create_app(run_pull_pipeline_fn=fake_run_pull_pipeline)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.post("/pull-data")
+    assert resp.status_code == 500
+    assert resp.get_json() == {"ok": False, "error": "Pull failed: boom"}
+
+
+def test_post_pull_data_returns_error_when_pipeline_raises():
+    def boom():
+        raise RuntimeError("kaboom")
+
+    website.PULL_STATE["status"] = "idle"
+    app = website.create_app(run_pull_pipeline_fn=boom)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.post("/pull-data")
+    assert resp.status_code == 500
+    assert resp.get_json() == {"ok": False, "error": "Pull failed: kaboom"}
+
+
 def test_busy_gating_update_analysis_returns_409():
     website.PULL_STATE["status"] = "running"
     app = website.create_app()
@@ -116,6 +147,7 @@ def test_busy_gating_update_analysis_returns_409():
 
     resp = client.post("/update-analysis")
     assert resp.status_code == 409
+    assert resp.get_json() == {"busy": True}
 
 
 def test_busy_gating_pull_data_returns_409(monkeypatch):
@@ -130,3 +162,4 @@ def test_busy_gating_pull_data_returns_409(monkeypatch):
 
     resp = client.post("/pull-data")
     assert resp.status_code == 409
+    assert resp.get_json() == {"busy": True}

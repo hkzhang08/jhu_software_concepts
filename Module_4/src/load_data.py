@@ -20,7 +20,7 @@ DATA_PATH = "llm_new_applicant.json"
 ORIGINAL_PATH = "llm_extend_applicant_data.json"
 
 # Data source name for postgreSQL
-DSN = "dbname=grad_cafe user=zhang8 host=localhost"
+DSN = os.environ["DATABASE_URL"]
 
 
 def fnum(value):

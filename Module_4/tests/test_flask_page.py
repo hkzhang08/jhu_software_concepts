@@ -6,12 +6,15 @@ Name:          Helen Zhang
 Email:         hzhan308@jh.edu
 """
 
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+os.environ.setdefault("DATABASE_URL", "postgresql://localhost/grad_cafe")
 
 import pytest
 from flask import Flask
@@ -47,7 +50,7 @@ def test_routes_registered():
     assert "/update-analysis" in rules and "POST" in rules["/update-analysis"]
 
 
-def test_index_route_renders(monkeypatch):
+def test_index_route_renders():
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -66,15 +69,14 @@ def test_index_route_renders(monkeypatch):
             "unc_phd_program_rows": [("Test Program", 1)],
         }
 
-    monkeypatch.setattr(website, "fetch_metrics", fake_metrics)
-    app = website.create_app()
+    app = website.create_app(fetch_metrics_fn=fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
     resp = client.get("/")
     assert resp.status_code == 200
 
 
-def test_analysis_page_contains_buttons_and_text(monkeypatch):
+def test_analysis_page_contains_buttons_and_text():
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -93,8 +95,7 @@ def test_analysis_page_contains_buttons_and_text(monkeypatch):
             "unc_phd_program_rows": [("Test Program", 1)],
         }
 
-    monkeypatch.setattr(website, "fetch_metrics", fake_metrics)
-    app = website.create_app()
+    app = website.create_app(fetch_metrics_fn=fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
     resp = client.get("/analysis")
@@ -106,20 +107,22 @@ def test_analysis_page_contains_buttons_and_text(monkeypatch):
     assert "Answer" in body
 
 
-def test_pull_data_route_redirects(monkeypatch):
+def test_pull_data_route_returns_ok_json(monkeypatch):
     monkeypatch.setattr(website, "run_pull_pipeline", lambda: None)
     website.PULL_STATE["status"] = "idle"
     app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()
     resp = client.post("/pull-data")
-    assert resp.status_code in (302, 303)
+    assert resp.status_code == 202
+    assert resp.get_json() == {"ok": True}
 
 
-def test_update_analysis_route_redirects():
+def test_update_analysis_route_returns_ok_json():
     website.PULL_STATE["status"] = "idle"
     app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()
     resp = client.post("/update-analysis")
-    assert resp.status_code in (302, 303)
+    assert resp.status_code == 200
+    assert resp.get_json() == {"ok": True}

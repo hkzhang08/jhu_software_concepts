@@ -15,10 +15,10 @@ import subprocess
 import sys
 from datetime import datetime
 import psycopg
-from flask import Flask, redirect, render_template, url_for
+from flask import Flask, current_app, jsonify, render_template
 
 # Create connections and paths to database
-DSN = "dbname=grad_cafe user=zhang8 host=localhost"
+DSN = os.environ["DATABASE_URL"]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.abspath(os.path.join(BASE_DIR, "templates"))
 STATIC_DIR = os.path.abspath(os.path.join(BASE_DIR, "static"))
@@ -281,11 +281,13 @@ def run_pull_pipeline():
             PULL_STATE["message"] = "Pull complete. Database updated."
         else:
             PULL_STATE["message"] = f"Pull complete. Inserted {inserted} new rows."
+        return True
 
     # Store any errors for the website
     except Exception as exc:
         PULL_STATE["status"] = "error"
         PULL_STATE["message"] = f"Pull failed: {exc}"
+        return False
 
 
 def fetch_metrics() -> dict:
@@ -524,13 +526,21 @@ def pull_data():
 
     # If data is running, do not start a second data pull
     if PULL_STATE["status"] == "running":
-        return ("Pull already in progress.", 409)
+        return jsonify({"busy": True}), 409
 
     # Run the pipeline to pull data and update the database
-    run_pull_pipeline()
+    run_fn = current_app.config.get("RUN_PULL_PIPELINE", run_pull_pipeline)
+    try:
+        result = run_fn()
+    except Exception as exc:
+        PULL_STATE["status"] = "error"
+        PULL_STATE["message"] = f"Pull failed: {exc}"
+        return jsonify({"ok": False, "error": PULL_STATE["message"]}), 500
 
-    # Update the website
-    return redirect(url_for("index"))
+    if result is False or PULL_STATE["status"] == "error":
+        return jsonify({"ok": False, "error": PULL_STATE["message"]}), 500
+
+    return jsonify({"ok": True}), 202
 
 
 def update_analysis():
@@ -540,10 +550,9 @@ def update_analysis():
 
     # If data is running, do not update analysis
     if PULL_STATE["status"] == "running":
-        return ("Pull already in progress.", 409)
+        return jsonify({"busy": True}), 409
 
-    # Refresh data
-    return redirect(url_for("index"))
+    return jsonify({"ok": True}), 200
 
 
 def index():
@@ -551,7 +560,8 @@ def index():
     Purpose: Pull the lastest answers from the database
     """
 
-    metrics = fetch_metrics()
+    fetch_fn = current_app.config.get("FETCH_METRICS", fetch_metrics)
+    metrics = fetch_fn()
 
     # Format the SQL questions
     questions = [
@@ -628,12 +638,16 @@ def index():
     return render_template("index.html", questions=questions, pull_state=PULL_STATE)
 
 
-def create_app():
+def create_app(*, run_pull_pipeline_fn=None, fetch_metrics_fn=None):
     """
     Purpose: Flask application factory
     """
 
     app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+    if run_pull_pipeline_fn is not None:
+        app.config["RUN_PULL_PIPELINE"] = run_pull_pipeline_fn
+    if fetch_metrics_fn is not None:
+        app.config["FETCH_METRICS"] = fetch_metrics_fn
     app.add_url_rule("/pull-data", "pull_data", pull_data, methods=["POST"])
     app.add_url_rule("/update-analysis", "update_analysis", update_analysis, methods=["POST"])
     app.add_url_rule("/", "index", index)

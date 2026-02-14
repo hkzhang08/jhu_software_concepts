@@ -21,7 +21,7 @@
             those updates available for analysis on this site
           </div>
           <form class="pull-form" method="post" action="{{ url_for('pull_data') }}">
-            <button class="pull-button" type="submit" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
+            <button class="pull-button" type="submit" data-testid="pull-data-btn" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
               Pull Data
             </button>
           </form>
@@ -33,7 +33,7 @@
             Once the data pull is complete, you can use Update Analysis to view the latest information.
           </div>
           <form class="pull-form" method="post" action="{{ url_for('update_analysis') }}">
-            <button class="update-button" type="submit" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
+            <button class="update-button" type="submit" data-testid="update-analysis-btn" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
               Update Analysis
             </button>
           </form>

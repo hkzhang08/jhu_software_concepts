@@ -1,9 +1,12 @@
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+os.environ.setdefault("DATABASE_URL", "postgresql://localhost/grad_cafe")
 
 import re
 
@@ -13,7 +16,7 @@ from src import website as website
 pytestmark = pytest.mark.analysis
 
 
-def test_answer_labels_per_analysis(monkeypatch):
+def test_answer_labels_per_analysis():
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -32,8 +35,7 @@ def test_answer_labels_per_analysis(monkeypatch):
             "unc_phd_program_rows": [("Test Program", 1)],
         }
 
-    monkeypatch.setattr(website, "fetch_metrics", fake_metrics)
-    app = website.create_app()
+    app = website.create_app(fetch_metrics_fn=fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
 

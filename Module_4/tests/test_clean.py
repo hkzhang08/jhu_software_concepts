@@ -9,7 +9,7 @@ if str(ROOT) not in sys.path:
 import pytest
 from src import clean
 
-pytestmark = pytest.mark.clean
+pytestmark = pytest.mark.db
 
 
 def test_load_data_reads_json_file(tmp_path):

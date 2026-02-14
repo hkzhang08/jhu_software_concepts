@@ -8,10 +8,11 @@ Email:         hzhan308@jh.edu
 
 
 # Carry out data analysis using SQL queries to answer questions about submission entries to grad café
+import os
 import psycopg
 
 # Data source name for postgreSQL
-DSN = "dbname=grad_cafe user=zhang8 host=localhost"
+DSN = os.environ["DATABASE_URL"]
 
 
 # Question 1

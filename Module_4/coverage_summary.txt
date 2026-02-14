@@ -15,4 +15,4 @@ src/website.py             150      0   100%
 ------------------------------------------------------
 TOTAL                      665      0   100%
 Required test coverage of 100% reached. Total coverage: 100.00%
-76 passed in 0.43s
+76 passed in 0.51s

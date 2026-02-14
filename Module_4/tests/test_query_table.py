@@ -13,6 +13,7 @@ pytestmark = pytest.mark.db
 
 
 def test_query_table_top_level_with_fake_db(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/grad_cafe")
     class State:
         def __init__(self):
             self.execute_count = 0
