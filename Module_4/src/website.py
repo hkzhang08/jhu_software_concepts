@@ -17,13 +17,15 @@ from datetime import datetime
 import psycopg
 from flask import Flask, redirect, render_template, url_for
 
-# Create flask app
-app = Flask(__name__)
-
 # Create connections and paths to database
 DSN = "dbname=grad_cafe user=zhang8 host=localhost"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_DIR = os.path.abspath(os.path.join(BASE_DIR, "templates"))
+STATIC_DIR = os.path.abspath(os.path.join(BASE_DIR, "static"))
 RAW_FILE = os.path.join(BASE_DIR, "applicant_data.json")
+
+# Create flask app
+app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 PULL_TARGET_N = 200
 PULL_STATE = {"status": "idle", "message": ""}
 
@@ -612,4 +614,3 @@ def index():
         },
     ]
     return render_template("index.html", questions=questions, pull_state=PULL_STATE)
-

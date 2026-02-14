@@ -11,13 +11,15 @@ import os
 import subprocess
 import sys
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Save file name for easy reference
-SCRAPED_FILE = "applicant_data.json"
-MASTER_FILE = "llm_extend_applicant_data.json"
-NEW_INPUT_FILE = "new_applicant_data.json"
-NEW_LLM_FILE = "llm_new_applicant.json"
-LLM_DIR = "llm_hosting"
-LLM_APP = "app.py"
+SCRAPED_FILE = os.path.join(BASE_DIR, "applicant_data.json")
+MASTER_FILE = os.path.join(BASE_DIR, "llm_extend_applicant_data.json")
+NEW_INPUT_FILE = os.path.join(BASE_DIR, "new_applicant_data.json")
+NEW_LLM_FILE = os.path.join(BASE_DIR, "llm_new_applicant.json")
+LLM_DIR = os.path.join(BASE_DIR, "llm_hosting")
+LLM_APP = os.path.join(LLM_DIR, "app.py")
 
 
 # Options for missing data

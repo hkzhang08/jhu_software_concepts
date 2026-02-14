@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grad School Cafe Data Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-header">
+        <div class="title">Grad School Cafe Data Analysis</div>
+        <div class="rule"></div>
+      </header>
+
+      <section class="action-grid">
+        <div class="action-card">
+          <div class="action-note">
+            Pull Data updates the database with the latest GradCafe results. When clicked, it
+            will search GradCafe for new records, add any new data to the database, and make
+            those updates available for analysis on this site
+          </div>
+          <form class="pull-form" method="post" action="{{ url_for('pull_data') }}">
+            <button class="pull-button" type="submit" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
+              Pull Data
+            </button>
+          </form>
+        </div>
+        <div class="action-card">
+          <div class="action-note">
+            Click Update Analysis to refresh this page with the most up-to-date results currently available
+            in the database. If Pull Data is actively running, this button will be temporarily disabled.
+            Once the data pull is complete, you can use Update Analysis to view the latest information.
+          </div>
+          <form class="pull-form" method="post" action="{{ url_for('update_analysis') }}">
+            <button class="update-button" type="submit" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
+              Update Analysis
+            </button>
+          </form>
+        </div>
+      </section>
+      {% if pull_state and pull_state.status == "running" %}
+        <div class="pull-status">Pull in progress - do not press "Update Analysis" button</div>
+      {% endif %}
+
+      <section class="analysis">
+        <div class="section-title">Analysis</div>
+        <div class="cards">
+          {% for item in questions %}
+            <div class="card">
+              <div class="card-question">{{ item.question }}</div>
+              <div class="card-answer">
+                <div class="answer-label">Answer:</div>
+                {% if item.answer_lines %}
+                  <div class="answer-lines">
+                    {% for line in item.answer_lines %}
+                      <div class="answer-line">{{ line }}</div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="answer-text">{{ item.answer }}</div>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
