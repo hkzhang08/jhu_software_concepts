@@ -24,8 +24,7 @@ TEMPLATE_DIR = os.path.abspath(os.path.join(BASE_DIR, "templates"))
 STATIC_DIR = os.path.abspath(os.path.join(BASE_DIR, "static"))
 RAW_FILE = os.path.join(BASE_DIR, "applicant_data.json")
 
-# Create flask app
-app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+# App config
 PULL_TARGET_N = 200
 PULL_STATE = {"status": "idle", "message": ""}
 
@@ -502,7 +501,6 @@ def fetch_metrics() -> dict:
     }
 
 
-@app.route("/pull-data", methods=["POST"])
 def pull_data():
     """
     Purpose: Creates and updates"Pull Data" button
@@ -510,7 +508,7 @@ def pull_data():
 
     # If data is running, do not start a second data pull
     if PULL_STATE["status"] == "running":
-        return redirect(url_for("index"))
+        return ("Pull already in progress.", 409)
 
     # Run the pipeline to pull data and update the database
     run_pull_pipeline()
@@ -519,7 +517,6 @@ def pull_data():
     return redirect(url_for("index"))
 
 
-@app.route("/update-analysis", methods=["POST"])
 def update_analysis():
     """
     Purpose: Creates the "Update Analysis" button
@@ -527,13 +524,12 @@ def update_analysis():
 
     # If data is running, do not update analysis
     if PULL_STATE["status"] == "running":
-        return redirect(url_for("index"))
+        return ("Pull already in progress.", 409)
 
     # Refresh data
     return redirect(url_for("index"))
 
 
-@app.route("/")
 def index():
     """
     Purpose: Pull the lastest answers from the database
@@ -614,3 +610,16 @@ def index():
         },
     ]
     return render_template("index.html", questions=questions, pull_state=PULL_STATE)
+
+
+def create_app():
+    """
+    Purpose: Flask application factory
+    """
+
+    app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+    app.add_url_rule("/pull-data", "pull_data", pull_data, methods=["POST"])
+    app.add_url_rule("/update-analysis", "update_analysis", update_analysis, methods=["POST"])
+    app.add_url_rule("/", "index", index)
+    app.add_url_rule("/analysis", "analysis", index)
+    return app
