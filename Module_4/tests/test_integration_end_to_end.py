@@ -113,8 +113,27 @@ def test_end_to_end_pull_update_render_with_fake_scraper(monkeypatch):
     assert "Fall 2026 Acceptance percent: 50.00" in body
 
 
-def test_update_analysis_succeeds_when_not_busy():
+def test_update_analysis_succeeds_when_not_busy(monkeypatch):
+    def fake_metrics():
+        return {
+            "fall_2026_count": 0,
+            "intl_pct": 0.0,
+            "avg_gpa": 0.0,
+            "avg_gre": 0.0,
+            "avg_gre_v": 0.0,
+            "avg_gre_aw": 0.0,
+            "avg_gpa_american_fall_2026": 0.0,
+            "acceptance_pct_fall_2026": 0.0,
+            "avg_gpa_accepted_fall_2026": 0.0,
+            "jhu_ms_cs_count": 0,
+            "cs_phd_accept_2026": 0,
+            "cs_phd_accept_2026_llm": 0,
+            "unc_masters_program_rows": [],
+            "unc_phd_program_rows": [],
+        }
+
     website.PULL_STATE["status"] = "idle"
+    monkeypatch.setattr(website, "fetch_metrics", fake_metrics)
     app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()
@@ -230,6 +249,26 @@ def test_multiple_pulls_with_overlap_respect_uniqueness(monkeypatch):
     monkeypatch.setattr(website, "run_pull_pipeline", fake_run_pull_pipeline)
     website.PULL_STATE["status"] = "idle"
 
+    monkeypatch.setattr(
+        website,
+        "fetch_metrics",
+        lambda: {
+            "fall_2026_count": 0,
+            "intl_pct": 0.0,
+            "avg_gpa": 0.0,
+            "avg_gre": 0.0,
+            "avg_gre_v": 0.0,
+            "avg_gre_aw": 0.0,
+            "avg_gpa_american_fall_2026": 0.0,
+            "acceptance_pct_fall_2026": 0.0,
+            "avg_gpa_accepted_fall_2026": 0.0,
+            "jhu_ms_cs_count": 0,
+            "cs_phd_accept_2026": 0,
+            "cs_phd_accept_2026_llm": 0,
+            "unc_masters_program_rows": [],
+            "unc_phd_program_rows": [],
+        },
+    )
     app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()

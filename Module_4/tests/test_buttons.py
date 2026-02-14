@@ -15,6 +15,25 @@ from src import website as website
 pytestmark = pytest.mark.buttons
 
 
+def _fake_metrics():
+    return {
+        "fall_2026_count": 0,
+        "intl_pct": 0.0,
+        "avg_gpa": 0.0,
+        "avg_gre": 0.0,
+        "avg_gre_v": 0.0,
+        "avg_gre_aw": 0.0,
+        "avg_gpa_american_fall_2026": 0.0,
+        "acceptance_pct_fall_2026": 0.0,
+        "avg_gpa_accepted_fall_2026": 0.0,
+        "jhu_ms_cs_count": 0,
+        "cs_phd_accept_2026": 0,
+        "cs_phd_accept_2026_llm": 0,
+        "unc_masters_program_rows": [],
+        "unc_phd_program_rows": [],
+    }
+
+
 def test_post_pull_data_triggers_loader_with_scraped_rows(monkeypatch, tmp_path):
     fake_rows = [{"program": "Test Program", "url": "https://example.com/result/1"}]
     calls = []
@@ -40,6 +59,7 @@ def test_post_pull_data_triggers_loader_with_scraped_rows(monkeypatch, tmp_path)
     monkeypatch.setattr(website, "BASE_DIR", str(tmp_path))
     monkeypatch.setattr(website, "RAW_FILE", str(tmp_path / "applicant_data.json"))
     monkeypatch.setattr(website.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(website, "fetch_metrics", _fake_metrics)
 
     website.PULL_STATE["status"] = "idle"
     app = website.create_app()
@@ -51,8 +71,9 @@ def test_post_pull_data_triggers_loader_with_scraped_rows(monkeypatch, tmp_path)
     assert calls == ["scrape", "clean", "load"]
 
 
-def test_post_update_analysis_returns_200_when_not_busy():
+def test_post_update_analysis_returns_200_when_not_busy(monkeypatch):
     website.PULL_STATE["status"] = "idle"
+    monkeypatch.setattr(website, "fetch_metrics", _fake_metrics)
     app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()

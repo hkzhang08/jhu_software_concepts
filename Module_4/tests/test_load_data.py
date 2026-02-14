@@ -5,12 +5,21 @@ import sys
 from pathlib import Path
 
 import pytest
+import psycopg
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 pytestmark = pytest.mark.db
+
+
+def _import_load_data(monkeypatch, fake_conn):
+    monkeypatch.setattr(psycopg, "connect", lambda _dsn: fake_conn)
+    if "src.load_data" in sys.modules:
+        del sys.modules["src.load_data"]
+    import src.load_data as load_data
+    return importlib.reload(load_data)
 
 
 def test_load_data_top_level_no_files(monkeypatch, tmp_path):
@@ -54,9 +63,7 @@ def test_load_data_top_level_no_files(monkeypatch, tmp_path):
     fake_conn = FakeConnection()
     monkeypatch.chdir(tmp_path)
 
-    import src.load_data as load_data
-
-    monkeypatch.setattr(load_data.psycopg, "connect", lambda _dsn: fake_conn)
+    load_data = _import_load_data(monkeypatch, fake_conn)
     captured = io.StringIO()
     monkeypatch.setattr(sys, "stdout", captured)
 
@@ -145,10 +152,7 @@ def test_load_data_happy_path_jsonl_inserts(monkeypatch, tmp_path):
     with open(new_path, "w", encoding="utf-8") as handle:
         handle.write(json.dumps(row2) + "\n")
 
-    import src.load_data as load_data
-
-    monkeypatch.setattr(load_data.psycopg, "connect", lambda _dsn: fake_conn)
-    importlib.reload(load_data)
+    load_data = _import_load_data(monkeypatch, fake_conn)
 
     assert fake_conn.cursor_obj.executemany_called is True
     assert len(fake_conn.cursor_obj.inserted_rows) == 2
@@ -207,10 +211,7 @@ def test_load_data_skips_duplicate_urls(monkeypatch, tmp_path):
     with open(new_path, "w", encoding="utf-8") as handle:
         handle.write(json.dumps(row3) + "\n")
 
-    import src.load_data as load_data
-
-    monkeypatch.setattr(load_data.psycopg, "connect", lambda _dsn: fake_conn)
-    importlib.reload(load_data)
+    load_data = _import_load_data(monkeypatch, fake_conn)
 
     assert fake_conn.cursor_obj.executemany_called is True
     assert len(fake_conn.cursor_obj.inserted_rows) == 1
@@ -282,10 +283,7 @@ def test_load_data_llm_generated_fallback(monkeypatch, tmp_path):
     with open(new_path, "w", encoding="utf-8") as handle:
         handle.write("")
 
-    import src.load_data as load_data
-
-    monkeypatch.setattr(load_data.psycopg, "connect", lambda _dsn: fake_conn)
-    importlib.reload(load_data)
+    load_data = _import_load_data(monkeypatch, fake_conn)
 
     assert fake_conn.cursor_obj.executemany_called is True
     inserted = fake_conn.cursor_obj.inserted_rows[0]
@@ -294,7 +292,37 @@ def test_load_data_llm_generated_fallback(monkeypatch, tmp_path):
 
 
 def test_load_data_helper_functions():
-    import src.load_data as load_data
+    class FakeCursor:
+        def execute(self, _query, _params=None):
+            return None
+
+        def executemany(self, _query, _rows):
+            return None
+
+        def fetchall(self):
+            return []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class FakeConnection:
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    mp = pytest.MonkeyPatch()
+    load_data = _import_load_data(mp, FakeConnection())
 
     assert load_data.fnum(None) is None
     assert load_data.fnum(3) == 3.0
@@ -311,3 +339,4 @@ def test_load_data_helper_functions():
 
     assert load_data.ftext(None) is None
     assert load_data.ftext("a\x00b") == "ab"
+    mp.undo()
