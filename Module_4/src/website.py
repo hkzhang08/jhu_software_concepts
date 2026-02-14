@@ -103,6 +103,19 @@ def ftext(value):
     return str(value).replace("\x00", "")
 
 
+def fmt_pct(value):
+    """
+    Purpose: format percentage values with two decimals
+    """
+
+    if value is None:
+        return "N/A"
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def ensure_applicant_table(cur):
     """
     Purpose: create applicants table if not exists
@@ -545,7 +558,7 @@ def index():
         },
         {
             "question": "What percentage of entries are from international students (not American or Other)?",
-            "answer": f"Percentage International: {metrics['intl_pct']}",
+            "answer": f"Percentage International: {fmt_pct(metrics['intl_pct'])}",
         },
         {
             "question": "What is the average GPA, GRE, GRE V, GRE AW of applicants who provide these metrics?",
@@ -562,7 +575,7 @@ def index():
         },
         {
             "question": "What percent of entries for Fall 2026 are Acceptances?",
-            "answer": f"Fall 2026 Acceptance percent: {metrics['acceptance_pct_fall_2026']}",
+            "answer": f"Fall 2026 Acceptance percent: {fmt_pct(metrics['acceptance_pct_fall_2026'])}",
         },
         {
             "question": "What is the average GPA of applicants who applied for Fall 2026 who are Acceptances?",

@@ -1,3 +1,5 @@
+import re
+
 from src import website as website
 
 
@@ -5,13 +7,13 @@ def test_answer_labels_per_analysis(monkeypatch):
     def fake_metrics():
         return {
             "fall_2026_count": 0,
-            "intl_pct": 0.0,
+            "intl_pct": 12.3,
             "avg_gpa": 0.0,
             "avg_gre": 0.0,
             "avg_gre_v": 0.0,
             "avg_gre_aw": 0.0,
             "avg_gpa_american_fall_2026": 0.0,
-            "acceptance_pct_fall_2026": 0.0,
+            "acceptance_pct_fall_2026": 45.678,
             "avg_gpa_accepted_fall_2026": 0.0,
             "jhu_ms_cs_count": 0,
             "cs_phd_accept_2026": 0,
@@ -32,3 +34,5 @@ def test_answer_labels_per_analysis(monkeypatch):
     question_count = body.count("card-question")
     assert question_count > 0
     assert answer_count == question_count
+    assert re.search(r"Percentage International:\\s*\\d+\\.\\d{2}", body)
+    assert re.search(r"Acceptance percent:\\s*\\d+\\.\\d{2}", body)
