@@ -1,0 +1,12 @@
+About
+=====
+
+This project pulls GradCafe results, cleans the data, loads it into PostgreSQL,
+and renders analysis in a Flask web app.
+
+Planned content
+---------------
+
+- HZ test edits
+- Data pipeline overview (scrape -> clean -> load)
+- Testing strategy and markers
