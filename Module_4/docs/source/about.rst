@@ -17,6 +17,31 @@ Web layer responsibilities:
 - Enforces busy-state gating so only one pull runs at a time.
 - Uses dependency injection in ``create_app()`` for testability.
 
+Route details:
+
+- ``GET /``: renders the analysis landing page.
+- ``GET /analysis``: renders the same analysis view.
+- ``POST /pull-data``: runs the scrape/clean/load pipeline and returns JSON.
+  Returns ``202`` with ``{"ok": true}`` when successful and ``409`` when busy.
+- ``POST /update-analysis``: refreshes metrics (no-op) and returns JSON.
+  Returns ``200`` with ``{"ok": true}`` when successful and ``409`` when busy.
+
+User interaction flow:
+
+1. Open ``/`` or ``/analysis`` to view current metrics.
+2. Click **Pull Data** to refresh the dataset (triggers the ETL pipeline).
+3. Once the pull completes, click **Update Analysis** to refresh the analysis view.
+4. If a pull is already running, both actions return a busy response and the UI
+   disables buttons to prevent duplicate requests.
+
+Project Structure
+-----------------
+
+- ``src/``: Application code (Flask app, ETL, DB helpers, and LLM tools).
+- ``tests/``: Pytest suite with required markers.
+- ``docs/``: Sphinx documentation sources and build output.
+- ``deliverable/``: Project deliverables (coverage summary, operational notes, repo link).
+
 ETL layer responsibilities:
 
 - Scrapes GradCafe survey pages into raw JSON.
@@ -54,6 +79,15 @@ For coverage (100% required):
 ::
 
       pytest -m "web or buttons or analysis or db or integration" --cov=src --cov-report=term-missing --cov-fail-under=100
+
+What is tested
+--------------
+
+- Web routes and HTML structure for ``/`` and ``/analysis``.
+- Button endpoints (``/pull-data``, ``/update-analysis``) and busy-state behavior.
+- Analysis formatting (labels, two-decimal percentages).
+- Database inserts, schema expectations, and deduplication.
+- End-to-end pull → update → render flows.
 
 Expected UI selectors
 ---------------------

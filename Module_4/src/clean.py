@@ -1,10 +1,4 @@
 """
-Class:         EP 605 2256 81 - Spring 2026
-Assignment:    Module_2 - Web Scraping
-Due Date:      February 1st by 11:59AM
-Name:          Helen Zhang
-Email:         hzhan308@jh.edu
-
 Clean and enrich scraped GradCafe data, then run LLM standardization.
 
 This module prepares scraped rows for analysis and optional LLM-based

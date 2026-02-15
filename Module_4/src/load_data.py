@@ -1,10 +1,4 @@
 """
-Class:         EP 605 2256 81 - Spring 2026
-Assignment:    Module_3 - Database Queries Assignment Experiment
-Due Date:      February 8th by 11:59AM
-Name:          Helen Zhang
-Email:         hzhan308@jh.edu
-
 Load cleaned GradCafe JSONL data into PostgreSQL.
 
 This module is designed to be executed as a script and will:

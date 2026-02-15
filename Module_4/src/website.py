@@ -1,10 +1,4 @@
 """
-Class:         EP 605 2256 81 - Spring 2026
-Assignment:    Module_3 - Database Queries Assignment Experiment
-Due Date:      February 8th by 11:59AM
-Name:          Helen Zhang
-Email:         hzhan308@jh.edu
-
 Flask application and data pipeline helpers for GradCafe analysis.
 
 This module exposes a Flask app factory, database utilities, and the

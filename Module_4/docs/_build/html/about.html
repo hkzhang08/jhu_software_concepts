@@ -16,7 +16,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Prerequisites" href="prerequisites.html" />
-    <link rel="prev" title="Sphinx_Doc documentation" href="index.html" />
+    <link rel="prev" title="Grad Cafe Analytics Application" href="index.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -49,6 +49,32 @@ and renders analysis in a Flask web app.</p>
 <li><p>Exposes <code class="docutils literal notranslate"><span class="pre">/pull-data</span></code> and <code class="docutils literal notranslate"><span class="pre">/update-analysis</span></code> to trigger data refreshes.</p></li>
 <li><p>Enforces busy-state gating so only one pull runs at a time.</p></li>
 <li><p>Uses dependency injection in <code class="docutils literal notranslate"><span class="pre">create_app()</span></code> for testability.</p></li>
+</ul>
+<p>Route details:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/</span></code>: renders the analysis landing page.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/analysis</span></code>: renders the same analysis view.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/pull-data</span></code>: runs the scrape/clean/load pipeline and returns JSON.
+Returns <code class="docutils literal notranslate"><span class="pre">202</span></code> with <code class="docutils literal notranslate"><span class="pre">{&quot;ok&quot;:</span> <span class="pre">true}</span></code> when successful and <code class="docutils literal notranslate"><span class="pre">409</span></code> when busy.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/update-analysis</span></code>: refreshes metrics (no-op) and returns JSON.
+Returns <code class="docutils literal notranslate"><span class="pre">200</span></code> with <code class="docutils literal notranslate"><span class="pre">{&quot;ok&quot;:</span> <span class="pre">true}</span></code> when successful and <code class="docutils literal notranslate"><span class="pre">409</span></code> when busy.</p></li>
+</ul>
+<p>User interaction flow:</p>
+<ol class="arabic simple">
+<li><p>Open <code class="docutils literal notranslate"><span class="pre">/</span></code> or <code class="docutils literal notranslate"><span class="pre">/analysis</span></code> to view current metrics.</p></li>
+<li><p>Click <strong>Pull Data</strong> to refresh the dataset (triggers the ETL pipeline).</p></li>
+<li><p>Once the pull completes, click <strong>Update Analysis</strong> to refresh the analysis view.</p></li>
+<li><p>If a pull is already running, both actions return a busy response and the UI
+disables buttons to prevent duplicate requests.</p></li>
+</ol>
+</section>
+<section id="project-structure">
+<h2>Project Structure<a class="headerlink" href="#project-structure" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">src/</span></code>: Application code (Flask app, ETL, DB helpers, and LLM tools).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tests/</span></code>: Pytest suite with required markers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/</span></code>: Sphinx documentation sources and build output.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">deliverable/</span></code>: Project deliverables (coverage summary, operational notes, repo link).</p></li>
 </ul>
 <p>ETL layer responsibilities:</p>
 <ul class="simple">
@@ -84,6 +110,16 @@ and renders analysis in a Flask web app.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pytest</span> <span class="o">-</span><span class="n">m</span> <span class="s2">&quot;web or buttons or analysis or db or integration&quot;</span> <span class="o">--</span><span class="n">cov</span><span class="o">=</span><span class="n">src</span> <span class="o">--</span><span class="n">cov</span><span class="o">-</span><span class="n">report</span><span class="o">=</span><span class="n">term</span><span class="o">-</span><span class="n">missing</span> <span class="o">--</span><span class="n">cov</span><span class="o">-</span><span class="n">fail</span><span class="o">-</span><span class="n">under</span><span class="o">=</span><span class="mi">100</span>
 </pre></div>
 </div>
+</section>
+<section id="what-is-tested">
+<h2>What is tested<a class="headerlink" href="#what-is-tested" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Web routes and HTML structure for <code class="docutils literal notranslate"><span class="pre">/</span></code> and <code class="docutils literal notranslate"><span class="pre">/analysis</span></code>.</p></li>
+<li><p>Button endpoints (<code class="docutils literal notranslate"><span class="pre">/pull-data</span></code>, <code class="docutils literal notranslate"><span class="pre">/update-analysis</span></code>) and busy-state behavior.</p></li>
+<li><p>Analysis formatting (labels, two-decimal percentages).</p></li>
+<li><p>Database inserts, schema expectations, and deduplication.</p></li>
+<li><p>End-to-end pull → update → render flows.</p></li>
+</ul>
 </section>
 <section id="expected-ui-selectors">
 <h2>Expected UI selectors<a class="headerlink" href="#expected-ui-selectors" title="Link to this heading">¶</a></h2>
@@ -188,8 +224,10 @@ and renders analysis in a Flask web app.</p>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">About</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#architecture">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#project-structure">Project Structure</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#api-reference">API reference</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#testing-guide">Testing guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-is-tested">What is tested</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#expected-ui-selectors">Expected UI selectors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#test-doubles-and-fixtures">Test doubles and fixtures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#required-environment-variables">Required environment variables</a></li>
@@ -198,13 +236,19 @@ and renders analysis in a Flask web app.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="prerequisites.html">Prerequisites</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_scrape.html">Scrape Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_clean.html">Clean Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_load_data.html">Load Data Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_query_table.html">Query Table Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_website.html">Website Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_llm_hosting.html">LLM Hosting Module</a></li>
 </ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="index.html" title="previous chapter">Sphinx_Doc documentation</a></li>
+      <li>Previous: <a href="index.html" title="previous chapter">Grad Cafe Analytics Application</a></li>
       <li>Next: <a href="prerequisites.html" title="next chapter">Prerequisites</a></li>
   </ul></li>
 </ul>

@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Sphinx_Doc documentation &#8212; Sphinx_Doc 1.0 documentation</title>
+    <title>Grad Cafe Analytics Application &#8212; Sphinx_Doc 1.0 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
     <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
     <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
@@ -33,19 +33,37 @@
 
           <div class="body" role="main">
             
-  <section id="sphinx-doc-documentation">
-<h1>Sphinx_Doc documentation<a class="headerlink" href="#sphinx-doc-documentation" title="Link to this heading">¶</a></h1>
-<p>Add your content using <code class="docutils literal notranslate"><span class="pre">reStructuredText</span></code> syntax. See the
+  <section id="grad-cafe-analytics-application">
+<h1>Grad Cafe Analytics Application<a class="headerlink" href="#grad-cafe-analytics-application" title="Link to this heading">¶</a></h1>
+<p>This project is a Flask-based web application that allows users to
+view and analyze graduate admissions data.
+The application includes page routing, analysis views, and
+data processing modules.</p>
+<section id="key-features">
+<h2>Key features<a class="headerlink" href="#key-features" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Flask routes for analysis pages and data refresh actions.</p></li>
+<li><p>ETL pipeline: scrape → clean → load → analyze.</p></li>
+<li><p>PostgreSQL-backed metrics for the analysis view.</p></li>
+<li><p>Fully marked pytest suite with 100% coverage.</p></li>
+</ul>
+</section>
+<section id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Link to this heading">¶</a></h2>
+<p>This site is built with Sphinx and reStructuredText.
+See the
 <a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html">reStructuredText</a>
-documentation for details.</p>
+documentation for syntax details.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="about.html#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="about.html#architecture">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="about.html#project-structure">Project Structure</a></li>
 <li class="toctree-l2"><a class="reference internal" href="about.html#api-reference">API reference</a></li>
 <li class="toctree-l2"><a class="reference internal" href="about.html#testing-guide">Testing guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="about.html#what-is-tested">What is tested</a></li>
 <li class="toctree-l2"><a class="reference internal" href="about.html#expected-ui-selectors">Expected UI selectors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="about.html#test-doubles-and-fixtures">Test doubles and fixtures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="about.html#required-environment-variables">Required environment variables</a></li>
@@ -54,11 +72,67 @@ documentation for details.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="prerequisites.html">Prerequisites</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="prerequisites.html#installation-instructions">Installation instructions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prerequisites.html#python-version">Python version</a></li>
+<li class="toctree-l2"><a class="reference internal" href="prerequisites.html#running-the-app">Running the app</a></li>
 <li class="toctree-l2"><a class="reference internal" href="prerequisites.html#planned-content">Planned content</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_scrape.html">Scrape Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_scrape.html#src.scrape.check_url"><code class="docutils literal notranslate"><span class="pre">check_url()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_scrape.html#src.scrape.create_pages"><code class="docutils literal notranslate"><span class="pre">create_pages()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_scrape.html#src.scrape.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_scrape.html#src.scrape.pull_pages"><code class="docutils literal notranslate"><span class="pre">pull_pages()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_scrape.html#src.scrape.scrape_data"><code class="docutils literal notranslate"><span class="pre">scrape_data()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_scrape.html#src.scrape.url_check"><code class="docutils literal notranslate"><span class="pre">url_check()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_clean.html">Clean Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.append_jsonl"><code class="docutils literal notranslate"><span class="pre">append_jsonl()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.clean_data"><code class="docutils literal notranslate"><span class="pre">clean_data()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.is_missing"><code class="docutils literal notranslate"><span class="pre">is_missing()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.load_data"><code class="docutils literal notranslate"><span class="pre">load_data()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.load_rows"><code class="docutils literal notranslate"><span class="pre">load_rows()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.reorder_data"><code class="docutils literal notranslate"><span class="pre">reorder_data()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.run_llm_standardizer"><code class="docutils literal notranslate"><span class="pre">run_llm_standardizer()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.save_data"><code class="docutils literal notranslate"><span class="pre">save_data()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_clean.html#src.clean.save_json_list"><code class="docutils literal notranslate"><span class="pre">save_json_list()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_load_data.html">Load Data Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_load_data.html#src.load_data.fdate"><code class="docutils literal notranslate"><span class="pre">fdate()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_load_data.html#src.load_data.fdegree"><code class="docutils literal notranslate"><span class="pre">fdegree()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_load_data.html#src.load_data.fnum"><code class="docutils literal notranslate"><span class="pre">fnum()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_load_data.html#src.load_data.ftext"><code class="docutils literal notranslate"><span class="pre">ftext()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_load_data.html#src.load_data.load_from_file"><code class="docutils literal notranslate"><span class="pre">load_from_file()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_query_table.html">Query Table Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_website.html">Website Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.create_app"><code class="docutils literal notranslate"><span class="pre">create_app()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.ensure_applicant_table"><code class="docutils literal notranslate"><span class="pre">ensure_applicant_table()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.fdate"><code class="docutils literal notranslate"><span class="pre">fdate()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.fdegree"><code class="docutils literal notranslate"><span class="pre">fdegree()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.fetch_metrics"><code class="docutils literal notranslate"><span class="pre">fetch_metrics()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.fmt_pct"><code class="docutils literal notranslate"><span class="pre">fmt_pct()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.fnum"><code class="docutils literal notranslate"><span class="pre">fnum()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.ftext"><code class="docutils literal notranslate"><span class="pre">ftext()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.index"><code class="docutils literal notranslate"><span class="pre">index()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.load_cleaned_data_to_db"><code class="docutils literal notranslate"><span class="pre">load_cleaned_data_to_db()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.pull_data"><code class="docutils literal notranslate"><span class="pre">pull_data()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.run_pull_pipeline"><code class="docutils literal notranslate"><span class="pre">run_pull_pipeline()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_website.html#src.website.update_analysis"><code class="docutils literal notranslate"><span class="pre">update_analysis()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_llm_hosting.html">LLM Hosting Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api_llm_hosting.html#src.llm_hosting.app.health"><code class="docutils literal notranslate"><span class="pre">health()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api_llm_hosting.html#src.llm_hosting.app.standardize"><code class="docutils literal notranslate"><span class="pre">standardize()</span></code></a></li>
 </ul>
 </li>
 </ul>
 </div>
+</section>
 </section>
 
 
@@ -91,6 +165,12 @@ documentation for details.</p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 <li class="toctree-l1"><a class="reference internal" href="prerequisites.html">Prerequisites</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_scrape.html">Scrape Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_clean.html">Clean Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_load_data.html">Load Data Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_query_table.html">Query Table Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_website.html">Website Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_llm_hosting.html">LLM Hosting Module</a></li>
 </ul>
 
 <div class="relations">

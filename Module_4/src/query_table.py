@@ -1,10 +1,4 @@
 """
-Class:         EP 605 2256 81 - Spring 2026
-Assignment:    Module_3 - Database Queries Assignment Experiment
-Due Date:      February 8th by 11:59AM
-Name:          Helen Zhang
-Email:         hzhan308@jh.edu
-
 Run SQL queries against the applicants table and print answers.
 
 This module is intended to be executed as a script. It connects to the
