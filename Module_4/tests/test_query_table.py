@@ -1,3 +1,5 @@
+"""Tests for the query_table module's top-level queries."""
+
 import importlib
 import sys
 from pathlib import Path
@@ -13,6 +15,7 @@ pytestmark = pytest.mark.db
 
 
 def test_query_table_top_level_with_fake_db(monkeypatch):
+    """Top-level import executes all expected queries against a fake DB."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/grad_cafe")
     class State:
         def __init__(self):

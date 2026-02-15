@@ -1,10 +1,4 @@
-"""
-Class:         EP 605 2256 81 - Spring 2026
-Assignment:    Module_4 - Testing and Documentation Assignment
-Due Date:      February 15th by 11:59AM
-Name:          Helen Zhang
-Email:         hzhan308@jh.edu
-"""
+"""Web route and template smoke tests for the Flask app."""
 
 import os
 import sys
@@ -21,12 +15,16 @@ from flask import Flask
 from src import website as website
 
 pytestmark = pytest.mark.web
+
+
 def test_create_app_returns_flask():
+    """create_app() returns a Flask instance."""
     app = website.create_app()
     assert isinstance(app, Flask)
 
 
 def test_init_main_runs_app(monkeypatch):
+    """__init__ main guard invokes Flask.run()."""
     called = {}
 
     def fake_run(self, *args, **kwargs):
@@ -42,6 +40,7 @@ def test_init_main_runs_app(monkeypatch):
 
 
 def test_routes_registered():
+    """Expected routes are registered with correct methods."""
     app = website.create_app()
     rules = {rule.rule: rule.methods for rule in app.url_map.iter_rules()}
     assert "/" in rules and "GET" in rules["/"]
@@ -51,6 +50,7 @@ def test_routes_registered():
 
 
 def test_index_route_renders():
+    """GET / renders successfully with injected metrics."""
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -77,6 +77,7 @@ def test_index_route_renders():
 
 
 def test_analysis_page_contains_buttons_and_text():
+    """GET /analysis includes buttons, title text, and Answer labels."""
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -108,6 +109,7 @@ def test_analysis_page_contains_buttons_and_text():
 
 
 def test_pull_data_route_returns_ok_json(monkeypatch):
+    """POST /pull-data returns ok JSON when idle."""
     monkeypatch.setattr(website, "run_pull_pipeline", lambda: None)
     website.PULL_STATE["status"] = "idle"
     app = website.create_app()
@@ -119,6 +121,7 @@ def test_pull_data_route_returns_ok_json(monkeypatch):
 
 
 def test_update_analysis_route_returns_ok_json():
+    """POST /update-analysis returns ok JSON when idle."""
     website.PULL_STATE["status"] = "idle"
     app = website.create_app()
     app.config["TESTING"] = True

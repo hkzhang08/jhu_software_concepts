@@ -1,3 +1,5 @@
+"""Tests for the clean.py data preparation pipeline."""
+
 import json
 import sys
 from pathlib import Path
@@ -13,6 +15,7 @@ pytestmark = pytest.mark.db
 
 
 def test_load_data_reads_json_file(tmp_path):
+    """load_data() reads a JSON array file."""
     data = [{"a": 1}, {"b": 2}]
     file_path = tmp_path / "data.json"
     with open(file_path, "w", encoding="utf-8") as handle:
@@ -23,11 +26,13 @@ def test_load_data_reads_json_file(tmp_path):
 
 
 def test_load_rows_missing_file_returns_empty(tmp_path):
+    """load_rows() returns [] for missing files."""
     missing = tmp_path / "missing.json"
     assert clean.load_rows(str(missing)) == []
 
 
 def test_load_rows_json_array(tmp_path):
+    """load_rows() handles a JSON array file."""
     rows = [{"x": 1}, {"y": 2}]
     file_path = tmp_path / "array.json"
     with open(file_path, "w", encoding="utf-8") as handle:
@@ -38,6 +43,7 @@ def test_load_rows_json_array(tmp_path):
 
 
 def test_load_rows_jsonl(tmp_path):
+    """load_rows() handles JSONL input."""
     rows = [{"x": 1}, {"y": 2}]
     file_path = tmp_path / "data.jsonl"
     with open(file_path, "w", encoding="utf-8") as handle:
@@ -50,6 +56,7 @@ def test_load_rows_jsonl(tmp_path):
 
 
 def test_load_rows_empty_or_whitespace(tmp_path):
+    """load_rows() returns [] for whitespace-only files."""
     file_path = tmp_path / "empty.jsonl"
     with open(file_path, "w", encoding="utf-8") as handle:
         handle.write("   \n\n  ")
@@ -59,6 +66,7 @@ def test_load_rows_empty_or_whitespace(tmp_path):
 
 
 def test_is_missing_variants():
+    """is_missing() flags null-ish values and passes valid values."""
     assert clean.is_missing(None) is True
     assert clean.is_missing("n/a") is True
     assert clean.is_missing("NA") is True
@@ -68,6 +76,7 @@ def test_is_missing_variants():
 
 
 def test_clean_data_filters_and_composes_program(capsys):
+    """clean_data() drops invalid rows and composes program field."""
     rows = [
         {"program_name": None, "university": "Test U"},
         {"program_name": "CS", "university": None},
@@ -82,6 +91,7 @@ def test_clean_data_filters_and_composes_program(capsys):
 
 
 def test_save_data_writes_json_file(tmp_path):
+    """save_data() writes a JSON array file."""
     rows = [{"a": 1}, {"b": 2}]
     file_path = tmp_path / "out.json"
     clean.save_data(rows, str(file_path))
@@ -92,6 +102,7 @@ def test_save_data_writes_json_file(tmp_path):
 
 
 def test_save_json_list_writes_json_array(tmp_path):
+    """save_json_list() writes a JSON array file."""
     rows = [{"a": 1}, {"b": 2}]
     file_path = tmp_path / "out_list.json"
     clean.save_json_list(rows, str(file_path))
@@ -102,6 +113,7 @@ def test_save_json_list_writes_json_array(tmp_path):
 
 
 def test_reorder_data_returns_expected_keys():
+    """reorder_data() places program first and preserves fields."""
     row = {
         "program": "CS, Test U",
         "masters_or_phd": "Masters",
@@ -126,6 +138,7 @@ def test_reorder_data_returns_expected_keys():
 
 
 def test_append_jsonl_missing_source_is_noop(tmp_path):
+    """append_jsonl() is a no-op when the source file is missing."""
     src = tmp_path / "missing.jsonl"
     dest = tmp_path / "dest.jsonl"
     clean.append_jsonl(str(src), str(dest))
@@ -133,6 +146,7 @@ def test_append_jsonl_missing_source_is_noop(tmp_path):
 
 
 def test_append_jsonl_creates_new_dest(tmp_path):
+    """append_jsonl() creates a new destination file when needed."""
     src = tmp_path / "src.jsonl"
     dest = tmp_path / "dest.jsonl"
     with open(src, "w", encoding="utf-8") as handle:
@@ -147,6 +161,7 @@ def test_append_jsonl_creates_new_dest(tmp_path):
 
 
 def test_append_jsonl_appends_to_existing_dest(tmp_path):
+    """append_jsonl() appends to an existing destination file."""
     src = tmp_path / "src.jsonl"
     dest = tmp_path / "dest.jsonl"
     with open(dest, "w", encoding="utf-8") as handle:
@@ -161,6 +176,7 @@ def test_append_jsonl_appends_to_existing_dest(tmp_path):
 
 
 def test_run_llm_standardizer_invokes_subprocess(monkeypatch, tmp_path):
+    """run_llm_standardizer() calls the CLI with expected args."""
     captured = {}
 
     def fake_run(args, cwd=None, check=None):
@@ -186,6 +202,7 @@ def test_run_llm_standardizer_invokes_subprocess(monkeypatch, tmp_path):
 
 
 def test_main_no_new_rows(monkeypatch, capsys):
+    """main() prints a message and exits when no new rows exist."""
     monkeypatch.setattr(clean, "load_data", lambda _file: [{"program_name": "CS", "university": "Test U"}])
     monkeypatch.setattr(clean, "load_rows", lambda _file: [{"url": "u1"}])
     monkeypatch.setattr(clean, "save_data", lambda _rows, _file: None)
@@ -199,6 +216,7 @@ def test_main_no_new_rows(monkeypatch, capsys):
 
 
 def test_main_with_new_rows_triggers_pipeline(monkeypatch):
+    """main() runs the LLM pipeline when new rows are present."""
     called = {"save_json_list": False, "run_llm": False, "append": False}
 
     monkeypatch.setattr(
@@ -232,6 +250,7 @@ def test_main_with_new_rows_triggers_pipeline(monkeypatch):
 
 
 def test_main_guard_executes(monkeypatch):
+    """__main__ guard invokes main()."""
     called = {"ran": False}
 
     def stub_main():

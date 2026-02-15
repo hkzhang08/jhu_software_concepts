@@ -4,6 +4,12 @@ Assignment:    Module_3 - Database Queries Assignment Experiment
 Due Date:      February 8th by 11:59AM
 Name:          Helen Zhang
 Email:         hzhan308@jh.edu
+
+Flask application and data pipeline helpers for GradCafe analysis.
+
+This module exposes a Flask app factory, database utilities, and the
+pull/update endpoints used by the web UI. It is designed for both
+interactive use and automated testing (via dependency injection).
 """
 
 
@@ -31,7 +37,10 @@ PULL_STATE = {"status": "idle", "message": ""}
 
 def fnum(value):
     """
-    Purpose: Convert values to a float if needed
+    Convert numeric-like values to float.
+
+    :param value: Any numeric-like value (str/int/float).
+    :returns: Float if parsable, otherwise None.
     """
 
     # Set to none if already missing
@@ -49,7 +58,10 @@ def fnum(value):
 
 def fdate(value):
     """
-    Purpose: Convert date strings to date objects
+    Convert date strings to ``datetime.date``.
+
+    :param value: Date string.
+    :returns: ``datetime.date`` or None if parsing fails.
     """
 
     # If missing, then keep as none
@@ -70,7 +82,10 @@ def fdate(value):
 
 def fdegree(value):
     """
-    Purpose: update PhDs (2.0) and Masters (1.0) to floats
+    Normalize degree labels to numeric categories.
+
+    :param value: Degree label (e.g., "PhD", "Masters").
+    :returns: 2.0 for PhD/doctorate, 1.0 for masters, else None.
     """
 
     # If not value, then return none
@@ -92,7 +107,10 @@ def fdegree(value):
 
 def ftext(value):
     """
-    Purpose: Convert text values to string
+    Normalize text values to strings without NULL bytes.
+
+    :param value: Input value.
+    :returns: Cleaned string or None.
     """
 
     # Return none if missing
@@ -105,7 +123,10 @@ def ftext(value):
 
 def fmt_pct(value):
     """
-    Purpose: format percentage values with two decimals
+    Format percentages with two decimal places.
+
+    :param value: Numeric-like percentage value.
+    :returns: Two-decimal string, or "N/A" if missing.
     """
 
     if value is None:
@@ -118,7 +139,10 @@ def fmt_pct(value):
 
 def ensure_applicant_table(cur):
     """
-    Purpose: create applicants table if not exists
+    Ensure the applicants table exists.
+
+    :param cur: Database cursor.
+    :returns: None.
     """
 
     cur.execute(
@@ -146,7 +170,10 @@ def ensure_applicant_table(cur):
 
 def load_cleaned_data_to_db(file_path: str) -> int:
     """
-    Purpose: load cleaned records from a JSON file into the applicants table
+    Load cleaned records from a JSON file into the applicants table.
+
+    :param file_path: Path to a JSON array file of cleaned rows.
+    :returns: Number of inserted rows.
     """
 
     # If file does not exist, return 0
@@ -232,7 +259,9 @@ def load_cleaned_data_to_db(file_path: str) -> int:
 
 def run_pull_pipeline():
     """
-    Purpose: Run the full data refresh pipeline
+    Run the full scrape → clean → load pipeline.
+
+    :returns: True on success, False on failure.
     """
 
     # Update status of data pull
@@ -292,7 +321,9 @@ def run_pull_pipeline():
 
 def fetch_metrics() -> dict:
     """
-    Purpose: query the database to answer the questions
+    Query the database and return metrics used by the analysis page.
+
+    :returns: Dict of computed metrics for the analysis template.
     """
 
     with psycopg.connect(DSN) as conn:
@@ -521,7 +552,9 @@ def fetch_metrics() -> dict:
 
 def pull_data():
     """
-    Purpose: Creates and updates"Pull Data" button
+    Trigger the data pull pipeline.
+
+    :returns: JSON response with status code.
     """
 
     # If data is running, do not start a second data pull
@@ -545,7 +578,9 @@ def pull_data():
 
 def update_analysis():
     """
-    Purpose: Creates the "Update Analysis" button
+    Refresh analysis results (no-op when busy).
+
+    :returns: JSON response with status code.
     """
 
     # If data is running, do not update analysis
@@ -557,7 +592,9 @@ def update_analysis():
 
 def index():
     """
-    Purpose: Pull the lastest answers from the database
+    Render the analysis page using current metrics.
+
+    :returns: Rendered HTML response.
     """
 
     fetch_fn = current_app.config.get("FETCH_METRICS", fetch_metrics)
@@ -640,7 +677,13 @@ def index():
 
 def create_app(*, run_pull_pipeline_fn=None, fetch_metrics_fn=None):
     """
-    Purpose: Flask application factory
+    Create and configure the Flask application.
+
+    Dependency injection hooks are exposed for testability.
+
+    :param run_pull_pipeline_fn: Optional callable to replace the pipeline.
+    :param fetch_metrics_fn: Optional callable to replace metric queries.
+    :returns: Configured Flask app instance.
     """
 
     app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)

@@ -1,3 +1,5 @@
+"""Tests for scraping utilities and page parsing."""
+
 import json
 import sys
 from pathlib import Path
@@ -14,6 +16,7 @@ pytestmark = pytest.mark.web
 
 
 def test_url_check_calls_robotparser(monkeypatch, capsys):
+    """url_check() initializes RobotFileParser and reports status."""
     calls = {"set_url": None, "read": 0}
 
     class FakeParser:
@@ -35,6 +38,7 @@ def test_url_check_calls_robotparser(monkeypatch, capsys):
 
 
 def test_check_url_not_allowed(monkeypatch, capsys):
+    """check_url() returns None when robots disallow fetch."""
     class FakeParser:
         def can_fetch(self, _agent, _url):
             return False
@@ -46,6 +50,7 @@ def test_check_url_not_allowed(monkeypatch, capsys):
 
 
 def test_check_url_allowed_returns_soup(monkeypatch):
+    """check_url() returns a BeautifulSoup object when allowed."""
     class FakeParser:
         def can_fetch(self, _agent, _url):
             return True
@@ -67,6 +72,7 @@ def test_check_url_allowed_returns_soup(monkeypatch):
 
 
 def test_check_url_http_error(monkeypatch, capsys):
+    """check_url() handles HTTP errors and returns None."""
     class FakeParser:
         def can_fetch(self, _agent, _url):
             return True
@@ -82,16 +88,19 @@ def test_check_url_http_error(monkeypatch, capsys):
 
 
 def test_scrape_data_no_table():
+    """scrape_data() returns [] when no table is present."""
     soup = scrape.BeautifulSoup("<html><body>No table</body></html>", "html.parser")
     assert scrape.scrape_data(soup) == []
 
 
 def test_scrape_data_no_tbody():
+    """scrape_data() returns [] when table has no tbody."""
     soup = scrape.BeautifulSoup("<table></table>", "html.parser")
     assert scrape.scrape_data(soup) == []
 
 
 def test_scrape_data_valid_table_all_branches():
+    """scrape_data() covers all parsing branches on valid HTML."""
     html = """
     <table>
       <tbody>
@@ -160,12 +169,14 @@ def test_scrape_data_valid_table_all_branches():
 
 
 def test_create_pages():
+    """create_pages() builds correct survey URLs."""
     assert scrape.create_pages(1).endswith("/survey/")
     assert scrape.create_pages(0).endswith("/survey/")
     assert scrape.create_pages(2).endswith("/survey/?page=2")
 
 
 def test_pull_pages_breaks_when_check_url_none(monkeypatch, tmp_path):
+    """pull_pages() stops when check_url returns None."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(scrape, "OUTPUT_FILE", str(tmp_path / "out.json"))
     monkeypatch.setattr(scrape, "url_check", lambda: object())
@@ -178,6 +189,7 @@ def test_pull_pages_breaks_when_check_url_none(monkeypatch, tmp_path):
 
 
 def test_pull_pages_breaks_when_no_records(monkeypatch, tmp_path):
+    """pull_pages() stops when no records are scraped."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(scrape, "OUTPUT_FILE", str(tmp_path / "out.json"))
     monkeypatch.setattr(scrape, "url_check", lambda: object())
@@ -191,6 +203,7 @@ def test_pull_pages_breaks_when_no_records(monkeypatch, tmp_path):
 
 
 def test_pull_pages_normal_path_caps_target(monkeypatch, tmp_path, capsys):
+    """pull_pages() caps output to target_n and prints progress."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(scrape, "OUTPUT_FILE", str(tmp_path / "out.json"))
     monkeypatch.setattr(scrape, "url_check", lambda: object())
@@ -214,6 +227,7 @@ def test_pull_pages_normal_path_caps_target(monkeypatch, tmp_path, capsys):
 
 
 def test_main_calls_pull_pages(monkeypatch):
+    """main() calls pull_pages() with the default target."""
     called = {}
 
     def fake_pull_pages(target_n=50, start_page=1):
@@ -225,6 +239,7 @@ def test_main_calls_pull_pages(monkeypatch):
 
 
 def test_main_guard_executes():
+    """__main__ guard invokes main()."""
     target_path = scrape.__file__
     with open(target_path, "r", encoding="utf-8") as handle:
         lines = handle.readlines()

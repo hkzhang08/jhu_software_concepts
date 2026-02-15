@@ -4,6 +4,11 @@ Assignment:    Module_2 - Web Scraping
 Due Date:      February 1st by 11:59AM
 Name:          Helen Zhang
 Email:         hzhan308@jh.edu
+
+Clean and enrich scraped GradCafe data, then run LLM standardization.
+
+This module prepares scraped rows for analysis and optional LLM-based
+standardization, producing both cleaned JSON and JSONL outputs.
 """
 
 import json
@@ -28,7 +33,10 @@ UNAVAILABLE = {"", "n/a", "na", "none", "null", "nan"}
 
 def load_data(file):
     """
-    Purpose: Load JSON data from a file and return as object
+    Load a JSON array file and return its parsed rows.
+
+    :param file: Path to a JSON file containing a list of records.
+    :returns: A list of dicts parsed from the JSON file.
     """
     with open(file, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -36,7 +44,10 @@ def load_data(file):
 
 def load_rows(file_path):
     """
-    Purpose: load rows from JSON array or JSONL file
+    Load rows from a JSON array file or JSONL file.
+
+    :param file_path: Path to a JSON array or JSONL file.
+    :returns: A list of dicts. Returns [] if the file is missing or empty.
     """
     if not os.path.exists(file_path):
         return []
@@ -65,7 +76,10 @@ def load_rows(file_path):
 
 def is_missing(value):
     """
-    Purpose: flag program name or university if missing
+    Return True if the value is missing or one of the unavailable sentinels.
+
+    :param value: Any value to test.
+    :returns: True if missing, False otherwise.
     """
 
     # Check if value is none
@@ -82,7 +96,11 @@ def is_missing(value):
 
 def clean_data(rows):
     """
-    Purpose: create a "program" field for each record from program name and university
+    Build a combined "program" field and drop invalid rows.
+
+    :param rows: Iterable of raw records.
+    :returns: A new list of records with a "program" field added. Rows missing
+        program_name or university are removed.
     """
 
     # Initialize list
@@ -116,7 +134,10 @@ def clean_data(rows):
 
 def save_data(rows, file):
     """
-    Purpose: Save cleaned data as a new JSON file
+    Write rows to a JSON file.
+
+    :param rows: List of dicts to serialize.
+    :param file: Destination path.
     """
     with open(file, "w", encoding="utf-8") as f:
         json.dump(rows, f, indent=2)
@@ -124,15 +145,21 @@ def save_data(rows, file):
 
 def save_json_list(rows, file):
     """
-    Purpose: save rows as a JSON array (for LLM input)
+    Write rows as a JSON array (used as LLM input).
+
+    :param rows: List of dicts to serialize.
+    :param file: Destination path.
     """
     with open(file, "w", encoding="utf-8") as f:
         json.dump(rows, f, indent=2)
 
+
 def reorder_data(row):
     """
-    Purpose: remove program_name and university and move program to the top to
-    match assignment example
+    Reorder keys so "program" appears first and output matches the example format.
+
+    :param row: A cleaned record dict.
+    :returns: A new dict with the expected key order and without program_name/university.
     """
 
     return {
@@ -154,7 +181,10 @@ def reorder_data(row):
 
 def run_llm_standardizer(input_file, output_file):
     """
-    Purpose: run the llm_hosting app to create LLM output JSONL
+    Run the LLM standardizer CLI to produce JSONL output.
+
+    :param input_file: Path to JSON array input for the LLM.
+    :param output_file: Destination JSONL output path.
     """
     input_path = os.path.abspath(input_file)
     output_path = os.path.abspath(output_file)
@@ -174,7 +204,10 @@ def run_llm_standardizer(input_file, output_file):
 
 def append_jsonl(src_file, dest_file):
     """
-    Purpose: append JSONL rows to a master file
+    Append JSONL rows to a destination file.
+
+    :param src_file: JSONL source file.
+    :param dest_file: JSONL destination file (created if missing).
     """
     if not os.path.exists(src_file):
         return
@@ -192,7 +225,15 @@ def append_jsonl(src_file, dest_file):
 
 def main():
     """
-    Purpose: main function to add program as a new field in data
+    Orchestrate the clean + LLM pipeline.
+
+    Steps:
+        1. Load scraped rows.
+        2. Clean and add the "program" field.
+        3. Reorder fields and overwrite the scraped JSON file.
+        4. Deduplicate by URL against the LLM master file.
+        5. Run the LLM standardizer for new rows only.
+        6. Append new JSONL rows to the master file.
     """
 
     # Load the original JSON file

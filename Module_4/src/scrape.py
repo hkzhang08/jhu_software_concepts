@@ -4,6 +4,11 @@ Assignment:    Module_2 - Web Scraping
 Due Date:      February 1st by 11:59AM
 Name:          Helen Zhang
 Email:         hzhan308@jh.edu
+
+Scrape GradCafe survey pages into a JSON dataset.
+
+This module uses robots.txt checks, page iteration, and BeautifulSoup
+to extract structured applicant records from the public survey pages.
 """
 
 
@@ -24,7 +29,9 @@ OUTPUT_FILE = "applicant_data.json"
 
 def url_check():
     """
-    Purpose: Confirm the robot.txt file allows scraping of site/url
+    Create and initialize a robots.txt parser for the GradCafe site.
+
+    :returns: A configured :class:`robotparser.RobotFileParser` instance.
     """
 
     # Join robots.txt URL and run it through the parser
@@ -43,7 +50,11 @@ def url_check():
 
 def check_url (page_url, parser):
     """
-    Purpose: Check if URL can be fetched. If so, then parse the HTML using BeautifulSoup
+    Fetch a page if allowed by robots.txt and return a BeautifulSoup object.
+
+    :param page_url: Page URL to fetch.
+    :param parser: Robots parser from :func:`url_check`.
+    :returns: :class:`bs4.BeautifulSoup` or None if blocked/error.
     """
 
     # Check if robots.txt allows for agent to fetch the URL (T/F)
@@ -77,7 +88,10 @@ def check_url (page_url, parser):
 
 def scrape_data(soup):
     """
-    Purpose: use BeautifulSoup, regex, and string search methods to scrape data
+    Parse the GradCafe results table into structured records.
+
+    :param soup: Parsed HTML document.
+    :returns: List of record dicts (possibly empty).
     """
 
     # Store data as a list
@@ -214,7 +228,10 @@ def scrape_data(soup):
 
 def create_pages(page_num):
     """
-    Purpose: Create the specific page URLs for GradCafe
+    Build the GradCafe survey URL for a given page.
+
+    :param page_num: Page index (1-based).
+    :returns: Fully qualified URL for the survey page.
     """
 
     # First page does not need page number
@@ -228,7 +245,11 @@ def create_pages(page_num):
 
 def pull_pages(target_n= 50, start_page=1):
     """
-    Purpose: Pull records for each page of URL and save as JSON
+    Pull records from paginated survey pages and save to JSON.
+
+    :param target_n: Maximum number of records to collect.
+    :param start_page: First page to start scraping from.
+    :returns: None. Writes ``OUTPUT_FILE`` as a JSON array.
     """
 
     # Parses through robots.txt
@@ -280,7 +301,9 @@ def pull_pages(target_n= 50, start_page=1):
 #
 def main():
     """
-    Purpose: main function to run pull_pages and web scrape n records
+    Run the scraper with the default target size.
+
+    Intended for command-line use.
     """
     pull_pages(target_n=500)
 

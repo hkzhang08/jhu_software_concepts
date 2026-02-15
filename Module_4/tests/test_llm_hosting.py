@@ -1,3 +1,5 @@
+"""Tests for the LLM standardizer API and CLI helpers."""
+
 import importlib
 import io
 import json
@@ -16,6 +18,7 @@ pytestmark = pytest.mark.db
 
 
 def import_app():
+    """Import the app module with stubbed LLM and hub dependencies."""
     fake_hf = types.SimpleNamespace(hf_hub_download=lambda **_kw: "/tmp/model.gguf")
 
     class FakeLlama:
@@ -47,6 +50,7 @@ def import_app():
 
 
 def test_normalize_input_variants():
+    """_normalize_input accepts list or {'rows': [...]} payloads."""
     app = import_app()
     assert app._normalize_input([{"a": 1}]) == [{"a": 1}]
     assert app._normalize_input({"rows": [{"b": 2}]}) == [{"b": 2}]
@@ -54,6 +58,7 @@ def test_normalize_input_variants():
 
 
 def test_read_lines_exists_and_missing(tmp_path):
+    """_read_lines handles existing and missing files."""
     app = import_app()
     path = tmp_path / "lines.txt"
     with open(path, "w", encoding="utf-8") as handle:
@@ -63,6 +68,7 @@ def test_read_lines_exists_and_missing(tmp_path):
 
 
 def test_split_fallback_variants():
+    """_split_fallback handles commas, 'at', abbreviations, and unknowns."""
     app = import_app()
 
     prog, uni = app._split_fallback("Mathematics, University of X")
@@ -88,6 +94,7 @@ def test_split_fallback_variants():
 
 
 def test_best_match_variants():
+    """_best_match returns None or the closest candidate."""
     app = import_app()
     assert app._best_match("", ["A"]) is None
     assert app._best_match("Test", []) is None
@@ -95,6 +102,7 @@ def test_best_match_variants():
 
 
 def test_post_normalize_program_paths(monkeypatch):
+    """_post_normalize_program follows fixes, canonical, and fuzzy paths."""
     app = import_app()
     monkeypatch.setattr(app, "CANON_PROGS", ["Computer Science"])
 
@@ -112,6 +120,7 @@ def test_post_normalize_program_paths(monkeypatch):
 
 
 def test_post_normalize_university_paths(monkeypatch):
+    """_post_normalize_university follows abbrev/fixes/canonical/fuzzy paths."""
     app = import_app()
     monkeypatch.setattr(app, "CANON_UNIS", ["University of Toronto"])
 
@@ -132,6 +141,7 @@ def test_post_normalize_university_paths(monkeypatch):
 
 
 def test_call_llm_json_success(monkeypatch):
+    """_call_llm parses JSON response and post-normalizes."""
     app = import_app()
 
     class FakeLlama:
@@ -158,6 +168,7 @@ def test_call_llm_json_success(monkeypatch):
 
 
 def test_call_llm_json_failure_triggers_fallback(monkeypatch):
+    """_call_llm falls back to rule-based parsing on invalid JSON."""
     app = import_app()
 
     class FakeLlama:
@@ -175,6 +186,7 @@ def test_call_llm_json_failure_triggers_fallback(monkeypatch):
 
 
 def test_health_endpoint():
+    """Health endpoint returns ok JSON."""
     app = import_app()
     client = app.app.test_client()
     resp = client.get("/")
@@ -183,6 +195,7 @@ def test_health_endpoint():
 
 
 def test_standardize_endpoint_appends_fields(monkeypatch):
+    """POST /standardize appends LLM fields for row payload."""
     app = import_app()
 
     def fake_call_llm(_text):
@@ -204,6 +217,7 @@ def test_standardize_endpoint_appends_fields(monkeypatch):
 
 
 def test_standardize_endpoint_accepts_list_payload(monkeypatch):
+    """POST /standardize accepts a list payload."""
     app = import_app()
 
     def fake_call_llm(_text):
@@ -225,6 +239,7 @@ def test_standardize_endpoint_accepts_list_payload(monkeypatch):
 
 
 def test_cli_process_file_stdout_and_file(monkeypatch, tmp_path):
+    """CLI writes JSONL to stdout and to a file."""
     app = import_app()
 
     def fake_call_llm(_text):
@@ -255,6 +270,7 @@ def test_cli_process_file_stdout_and_file(monkeypatch, tmp_path):
 
 
 def test_cli_process_file_append(monkeypatch, tmp_path):
+    """CLI append mode adds new rows to existing JSONL."""
     app = import_app()
 
     def fake_call_llm(_text):
@@ -279,6 +295,7 @@ def test_cli_process_file_append(monkeypatch, tmp_path):
 
 
 def test_main_guard_serve_path(monkeypatch, tmp_path):
+    """__main__ guard runs server when --serve is used."""
     app = import_app()
     target_path = app.__file__
 
@@ -297,6 +314,7 @@ def test_main_guard_serve_path(monkeypatch, tmp_path):
 
 
 def test_main_guard_file_path(monkeypatch, tmp_path):
+    """__main__ guard processes a file when --file is provided."""
     app = import_app()
     target_path = app.__file__
 
@@ -319,6 +337,7 @@ def test_main_guard_file_path(monkeypatch, tmp_path):
 
 
 def test_load_llm_returns_cached_instance(monkeypatch):
+    """_load_llm returns cached instance without download."""
     app = import_app()
     sentinel = object()
     monkeypatch.setattr(app, "_LLM", sentinel)

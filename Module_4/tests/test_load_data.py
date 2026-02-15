@@ -1,3 +1,5 @@
+"""Tests for the load_data.py module and helpers."""
+
 import importlib
 import io
 import json
@@ -16,6 +18,7 @@ pytestmark = pytest.mark.db
 
 
 def _import_load_data(monkeypatch, fake_conn):
+    """Import/reload load_data with a fake database connection."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/grad_cafe")
     monkeypatch.setattr(psycopg, "connect", lambda _dsn: fake_conn)
     if "src.load_data" in sys.modules:
@@ -25,6 +28,7 @@ def _import_load_data(monkeypatch, fake_conn):
 
 
 def test_load_data_top_level_no_files(monkeypatch, tmp_path):
+    """Top-level load handles missing files and inserts zero rows."""
     class FakeCursor:
         def __init__(self):
             self.executemany_called = False
@@ -76,6 +80,7 @@ def test_load_data_top_level_no_files(monkeypatch, tmp_path):
 
 
 def test_load_data_happy_path_jsonl_inserts(monkeypatch, tmp_path):
+    """Happy path loads JSONL from both files and inserts rows."""
     class FakeCursor:
         def __init__(self):
             self.executemany_called = False
@@ -161,6 +166,7 @@ def test_load_data_happy_path_jsonl_inserts(monkeypatch, tmp_path):
 
 
 def test_load_data_skips_duplicate_urls(monkeypatch, tmp_path):
+    """Duplicate URLs are skipped before insert."""
     class FakeCursor:
         def __init__(self):
             self.executemany_called = False
@@ -220,6 +226,7 @@ def test_load_data_skips_duplicate_urls(monkeypatch, tmp_path):
 
 
 def test_load_data_llm_generated_fallback(monkeypatch, tmp_path):
+    """LLM-generated fields are used when present in input."""
     class FakeCursor:
         def __init__(self):
             self.executemany_called = False
@@ -294,6 +301,7 @@ def test_load_data_llm_generated_fallback(monkeypatch, tmp_path):
 
 
 def test_load_data_helper_functions():
+    """Helper functions handle edge cases for numbers, dates, degrees, and text."""
     class FakeCursor:
         def execute(self, _query, _params=None):
             return None

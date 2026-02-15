@@ -1,3 +1,5 @@
+"""Integration tests for pull → update → render flows."""
+
 import os
 import sys
 from pathlib import Path
@@ -15,6 +17,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_end_to_end_pull_update_render_with_fake_scraper():
+    """End-to-end flow with a fake scraper and in-memory state."""
     state = {"rows": [], "db_rows": []}
 
     def fake_scraper():
@@ -120,6 +123,7 @@ def test_end_to_end_pull_update_render_with_fake_scraper():
 
 
 def test_update_analysis_succeeds_when_not_busy():
+    """Update-analysis succeeds when the system is not busy."""
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -149,6 +153,7 @@ def test_update_analysis_succeeds_when_not_busy():
 
 
 def test_analysis_shows_updated_metrics_with_formatted_values():
+    """Rendered analysis includes formatted metrics."""
     state = {
         "db_rows": [
             {
@@ -222,6 +227,7 @@ def test_analysis_shows_updated_metrics_with_formatted_values():
 
 
 def test_multiple_pulls_with_overlap_respect_uniqueness():
+    """Multiple pulls with overlapping URLs dedupe correctly."""
     state = {"db_rows": []}
 
     def fake_insert_rows(rows):

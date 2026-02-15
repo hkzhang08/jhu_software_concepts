@@ -4,6 +4,11 @@ Assignment:    Module_3 - Database Queries Assignment Experiment
 Due Date:      February 8th by 11:59AM
 Name:          Helen Zhang
 Email:         hzhan308@jh.edu
+
+Run SQL queries against the applicants table and print answers.
+
+This module is intended to be executed as a script. It connects to the
+database using ``DATABASE_URL`` and prints the results of each question.
 """
 
 
@@ -15,8 +20,7 @@ import psycopg
 DSN = os.environ["DATABASE_URL"]
 
 
-# Question 1
-# How many entries do you have in your database who have applied for Fall 2026?
+# Question 1: How many entries have applied for Fall 2026?
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
 
@@ -34,12 +38,10 @@ with psycopg.connect(DSN) as conn:
 print(f"Fall 2026 applicants: {fall_2025_count}\n")
 
 
-# Question 2
-# What percentage of entries are from international students (to two decimal places)?
+# Question 2: Percentage of international entries (two decimals).
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Sum cases matching filters, then divide by count to get a percentage
-        # Round to 2 decimal places
+        # Sum cases matching filters, divide by count, and round to 2 decimals.
         cur.execute(
             """
             SELECT
@@ -56,16 +58,10 @@ with psycopg.connect(DSN) as conn:
 print(f"Percentage of International Entries: {intl_pct}\n")
 
 
-# Question 3
-# What is the average GPA, GRE, GRE V, GRE AW of applicants who provide these metrics?
+# Question 3: Average GPA/GRE metrics among valid values.
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Average of values with given filters as long as they are possible values
-        # Round to 2 decimal places
-        # Remove gpa greater than 4.33 (the US max)
-        # Remove gre greater than 340 (the max)
-        # Remove gre verbal greater than 170 (the max)
-        # Remove gre writing greater than 6.0 (the max)
+        # Filter to valid ranges and round to 2 decimals.
         cur.execute(
             """
             SELECT
@@ -87,13 +83,10 @@ print(
 )
 
 
-# Question 4
-# What is the average GPA of American students in Fall 2026?
+# Question 4: Average GPA of American applicants in Fall 2026.
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Average of values with given filters as long as they are possible values
-        # Round to 2 decimal places
-        # Needed to exclude likely gpa errors where gpa > 4.33 (ex. case where gpa = 389.0)
+        # Exclude likely GPA errors above the 4.33 scale.
         cur.execute(
             """
             SELECT
@@ -111,12 +104,10 @@ with psycopg.connect(DSN) as conn:
 print(f"Average GPA of Fall 2026 American Applicants: {avg_gpa_american_fall_2026}\n")
 
 
-# Question 5
-# What percent of entries for Fall 2026 are Acceptances (to two decimal places)?
+# Question 5: Acceptance percentage for Fall 2026 (two decimals).
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Sum cases matching filters, then divide by count to get a percentage
-        # Round to 2 decimal places
+        # Sum cases matching filters, divide by count, round to 2 decimals.
         cur.execute(
             """
             SELECT
@@ -135,12 +126,10 @@ with psycopg.connect(DSN) as conn:
 print(f"Percentage of Fall 2026 Acceptances (to date): {acceptance_pct_fall_2026}\n")
 
 
-# Question 6
-# What is the average GPA of applicants who applied for Fall 2026 who are Acceptances?
+# Question 6: Average GPA of accepted Fall 2026 applicants.
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Restrict to accepted Fall 2026 applicants and valid gpa values
-        # Needed to exclude likely gpa errors where gpa > 4.33 (ex. case where gpa = 389.0)
+        # Restrict to accepted Fall 2026 applicants and valid GPA values.
         cur.execute(
             """
             SELECT
@@ -158,11 +147,10 @@ with psycopg.connect(DSN) as conn:
 print(f"Average GPA of Fall 2026 Accepted Applicants: {avg_gpa_american_fall_2026}\n")
 
 
-# Question 7
-# How many entries are from applicants who applied to JHU for a masters degrees in Computer Science?
+# Question 7: JHU MS CS applicant count (raw + LLM fields).
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Create patterns to match against program and llm_generated_program
+        # Match on both raw program text and LLM-normalized fields.
         cs_patterns = ["%Computer Science%"]
         jhu_patterns = ["%Johns Hopkins%", "%John Hopkins%", "%JHU%"]
 
@@ -188,12 +176,10 @@ with psycopg.connect(DSN) as conn:
 print(f"JHU Masters of Computer Science Applicants: {jhu_ms_cs_count}\n")
 
 
-# Question 8
-# How many entries from 2026 are acceptances from applicants who applied to
-# Georgetown, MIT, Stanford, or CMU for a PhD in CS?
+# Question 8: 2026 PhD CS acceptances at Georgetown/MIT/Stanford/CMU.
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Create patterns to match against program
+        # Create patterns to match against program names.
         cs_patterns = ["%Computer Science%"]
         uni_patterns = [
             "%Georgetown%",
@@ -203,7 +189,7 @@ with psycopg.connect(DSN) as conn:
             "%Carnegie Mellon%",
             "%CMU%",
         ]
-        # Match against multiple school name patterns
+        # Match against multiple school name patterns.
         cur.execute(
             """
             SELECT COUNT(*)
@@ -224,11 +210,10 @@ print(
 )
 
 
-# Question 9
-# Do your numbers for Q8 change if you use LLM Fields?
+# Question 9: Same as Q8 using LLM-normalized fields.
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Create patterns to match against raw and llm_generated cleaning
+        # Create patterns to match against raw and LLM fields.
         cs_patterns = ["%Computer Science%"]
         uni_patterns = [
             "%Georgetown%",
@@ -238,7 +223,7 @@ with psycopg.connect(DSN) as conn:
             "%Carnegie Mellon%",
             "%CMU%",
         ]
-        # Check the LLM standardized fields instead of raw text
+        # Check the LLM standardized fields instead of raw text.
         cur.execute(
             """
             SELECT COUNT(*)
@@ -259,12 +244,10 @@ print(
 )
 
 
-# Next, come up with 2 additional questions that you are curious to answer
-# Question 10
-# How many entries by masters program are from UNC CH in Fall 2026
+# Question 10: Accepted UNC-CH Masters applicants in Fall 2026 by program.
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Check different patterns for UNC CH
+        # Check different patterns for UNC CH.
         unc_patterns = [
             "%UNC%",
             "%UNC-CH%",
@@ -272,7 +255,7 @@ with psycopg.connect(DSN) as conn:
             "%University of North Carolina at Chapel Hill%",
             "%Chapel Hill%",
         ]
-        # return the first matching program name
+        # Use the first matching program name (LLM if present).
         cur.execute(
             """
             SELECT
@@ -299,11 +282,10 @@ for program_name, count in rows:
 print("\n")
 
 
-# Question 11
-# How many phd biostatics or epidemiology applicants were there from UNC CH in Fall 2026 by program
+# Question 11: UNC-CH PhD Biostat/Epidemiology applicants by program.
 with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
-        # Check different patterns for UNC CH
+        # Check different patterns for UNC CH.
         unc_patterns = [
             "%UNC%",
             "%UNC-CH%",
@@ -311,7 +293,7 @@ with psycopg.connect(DSN) as conn:
             "%University of North Carolina%",
             "%Chapel Hill%",
         ]
-        # Check different patterns for biostat/epidemiology
+        # Check different patterns for biostat/epidemiology.
         program_patterns = ["%Biostat%", "%Epidemiolog%"]
         cur.execute(
             """

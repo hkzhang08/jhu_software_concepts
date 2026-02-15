@@ -1,3 +1,5 @@
+"""Tests for database insert logic and metric queries in website.py."""
+
 import os
 import sys
 from pathlib import Path
@@ -17,6 +19,7 @@ pytestmark = pytest.mark.db
 
 
 class FakeCursor:
+    """Minimal cursor stub for insert/dedup tests."""
     def __init__(self, table):
         self.table = table
         self._result = []
@@ -41,6 +44,7 @@ class FakeCursor:
 
 
 class FakeConnection:
+    """Connection stub that returns the fake cursor."""
     def __init__(self, table):
         self.table = table
 
@@ -58,6 +62,7 @@ class FakeConnection:
 
 
 def test_pull_inserts_rows_into_empty_table(monkeypatch, tmp_path):
+    """POST /pull-data inserts rows and required fields are non-null."""
     table = []
 
     def fake_connect(_dsn):
@@ -109,11 +114,13 @@ def test_pull_inserts_rows_into_empty_table(monkeypatch, tmp_path):
 
 
 def test_load_cleaned_data_missing_file_returns_zero(tmp_path):
+    """Missing input file yields zero inserts."""
     missing_path = tmp_path / "missing.json"
     assert website.load_cleaned_data_to_db(str(missing_path)) == 0
 
 
 def test_duplicate_rows_do_not_insert_twice(monkeypatch, tmp_path):
+    """Duplicate pulls do not insert duplicates by URL."""
     table = []
 
     def fake_connect(_dsn):
@@ -150,6 +157,7 @@ def test_duplicate_rows_do_not_insert_twice(monkeypatch, tmp_path):
 
 
 def test_duplicate_rows_within_single_file(monkeypatch, tmp_path):
+    """Duplicate URLs within a single file insert only once."""
     table = []
 
     def fake_connect(_dsn):
@@ -198,6 +206,7 @@ def test_duplicate_rows_within_single_file(monkeypatch, tmp_path):
 
 
 def test_fetch_metrics_returns_expected_keys(monkeypatch):
+    """fetch_metrics() returns the expected key set for the template."""
     class MetricsCursor:
         def __init__(self):
             self.results = [

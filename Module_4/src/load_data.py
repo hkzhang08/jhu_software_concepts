@@ -4,6 +4,13 @@ Assignment:    Module_3 - Database Queries Assignment Experiment
 Due Date:      February 8th by 11:59AM
 Name:          Helen Zhang
 Email:         hzhan308@jh.edu
+
+Load cleaned GradCafe JSONL data into PostgreSQL.
+
+This module is designed to be executed as a script and will:
+- Ensure the applicants table exists.
+- Load rows from the master JSONL file and the new-rows JSONL file.
+- Deduplicate by URL before insert.
 """
 
 
@@ -25,7 +32,10 @@ DSN = os.environ["DATABASE_URL"]
 
 def fnum(value):
     """
-    Purpose: Convert values to a float if needed
+    Convert numeric-like values to float.
+
+    :param value: Any numeric-like value (str/int/float).
+    :returns: Float if parsable, otherwise None.
     """
 
     # Set to none if already missing
@@ -43,7 +53,12 @@ def fnum(value):
 
 def fdate(value):
     """
-    Purpose: Convert date strings to date objects
+    Convert date strings to ``datetime.date``.
+
+    Supports multiple formats used in the dataset.
+
+    :param value: Date string (e.g., "February 01, 2026").
+    :returns: ``datetime.date`` or None if parsing fails.
     """
 
     # If missing, then keep as none
@@ -65,7 +80,10 @@ def fdate(value):
 
 def fdegree(value):
     """
-    Purpose: update PhDs (2.0) and Masters (1.0) to floats
+    Normalize degree labels to numeric categories.
+
+    :param value: Degree label (e.g., "PhD", "Masters").
+    :returns: 2.0 for PhD/doctorate, 1.0 for masters, else None.
     """
 
     # If not value, then return none
@@ -87,7 +105,10 @@ def fdegree(value):
 
 def ftext(value):
     """
-    Purpose: Convert text values to string
+    Normalize text values to strings without NULL bytes.
+
+    :param value: Input value.
+    :returns: Cleaned string or None.
     """
 
     # Return none if missing
@@ -136,6 +157,11 @@ with psycopg.connect(DSN) as conn:
         seen_urls = set(existing_urls)
 
         def load_from_file(path):
+            """
+            Load JSONL rows from a file into the pending insert list.
+
+            :param path: JSONL file path.
+            """
             if not os.path.exists(path):
                 print(f"No file found: {path}")
                 return

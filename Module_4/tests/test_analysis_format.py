@@ -1,3 +1,9 @@
+"""Tests for analysis page formatting and helper utilities.
+
+These tests ensure analysis rendering is labeled and percentages are shown
+with two decimals, and they validate helper formatting behavior.
+"""
+
 import os
 import sys
 from pathlib import Path
@@ -17,6 +23,7 @@ pytestmark = pytest.mark.analysis
 
 
 def test_answer_labels_per_analysis():
+    """Render /analysis and verify labels and two-decimal percentages."""
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -51,6 +58,7 @@ def test_answer_labels_per_analysis():
 
 
 def test_helper_formatters_cover_edge_cases():
+    """Cover helper functions used by analysis rendering."""
     assert website.fnum(None) is None
     assert website.fnum(3) == 3.0
     assert website.fnum("GPA 4.5") == 4.5
