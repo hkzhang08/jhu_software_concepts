@@ -37,5 +37,7 @@ jobs:
 
       - name: Run tests
         working-directory: Module_4
+        env:
+          DATABASE_URL: postgresql://zhang8:postgres@localhost:5432/grad_cafe
         run: |
           pytest -m "web or buttons or analysis or db or integration"
