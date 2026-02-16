@@ -5,3 +5,4 @@ beautifulsoup4
 psycopg[binary]
 huggingface_hub
 llama_cpp_python
+sphinx

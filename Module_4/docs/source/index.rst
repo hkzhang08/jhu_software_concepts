@@ -26,6 +26,8 @@ This site is built with Sphinx and reStructuredText.
 See the
 `reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
 documentation for syntax details.
+For Sphinx hosting and publishing guidance, see
+`Read the Docs <https://docs.readthedocs.io/en/stable/>`_.
 
 
 .. toctree::

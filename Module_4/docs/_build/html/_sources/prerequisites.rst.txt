@@ -42,10 +42,3 @@ From the project root::
 Alternatively::
 
       python -m src
-
-Planned content
----------------
-
-- Python version and package requirements
-- PostgreSQL configuration (DATABASE_URL)
-- Optional local LLM setup for llm_hosting
