@@ -6,7 +6,7 @@ database using ``DATABASE_URL`` and prints the results of each question.
 """
 
 
-# Carry out data analysis using SQL queries to answer questions about submission entries to grad café
+# Carry out data analysis using SQL queries to answer questions about entries to grad café
 import os
 import psycopg
 
@@ -59,10 +59,28 @@ with psycopg.connect(DSN) as conn:
         cur.execute(
             """
             SELECT
-                ROUND((AVG(gpa) FILTER (WHERE gpa IS NOT NULL AND gpa BETWEEN 0 AND 4.33))::numeric, 2) AS avg_gpa,
-                ROUND((AVG(gre) FILTER (WHERE gre IS NOT NULL AND gre BETWEEN 0 AND 340))::numeric, 2) AS avg_gre,
-                ROUND((AVG(gre_v) FILTER (WHERE gre_v IS NOT NULL AND gre_v BETWEEN 0 AND 170))::numeric, 2) AS avg_gre_v,
-                ROUND((AVG(gre_aw) FILTER (WHERE gre_aw IS NOT NULL AND gre_aw BETWEEN 0 AND 6.0))::numeric, 2) AS avg_gre_aw
+                ROUND(
+                    (AVG(gpa) FILTER (WHERE gpa IS NOT NULL AND gpa BETWEEN 0 AND 4.33))::numeric,
+                    2
+                ) AS avg_gpa,
+                ROUND(
+                    (AVG(gre) FILTER (WHERE gre IS NOT NULL AND gre BETWEEN 0 AND 340))::numeric,
+                    2
+                ) AS avg_gre,
+                ROUND(
+                    (AVG(gre_v) FILTER (
+                        WHERE gre_v IS NOT NULL
+                          AND gre_v BETWEEN 0 AND 170
+                    ))::numeric,
+                    2
+                ) AS avg_gre_v,
+                ROUND(
+                    (AVG(gre_aw) FILTER (
+                        WHERE gre_aw IS NOT NULL
+                          AND gre_aw BETWEEN 0 AND 6.0
+                    ))::numeric,
+                    2
+                ) AS avg_gre_aw
             FROM applicants;
             """
         )

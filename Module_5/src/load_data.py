@@ -17,8 +17,9 @@ import psycopg
 
 
 # Path to LLM cleaned JSON data (new rows only)
-DATA_PATH = "llm_new_applicant.json"
-ORIGINAL_PATH = "llm_extend_applicant_data.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "llm_new_applicant.json")
+ORIGINAL_PATH = os.path.join(BASE_DIR, "llm_extend_applicant_data.json")
 
 # Data source name for postgreSQL
 DSN = os.environ["DATABASE_URL"]
@@ -159,7 +160,7 @@ with psycopg.connect(DSN) as conn:
             if not os.path.exists(path):
                 print(f"No file found: {path}")
                 return
-            with open(path) as handle:
+            with open(path, encoding="utf-8") as handle:
                 for line in handle:
                     # Skip empty lines
                     if not line.strip():

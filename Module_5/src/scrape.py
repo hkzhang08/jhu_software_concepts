@@ -8,7 +8,6 @@ to extract structured applicant records from the public survey pages.
 
 
 from urllib import parse, robotparser, error, request
-import os
 import re
 import json
 import time
@@ -80,6 +79,112 @@ def check_url (page_url, parser):
         return None
 
 
+def _empty_record():
+    """Return a new record skeleton."""
+    return {
+        "program_name": None,
+        "university": None,
+        "masters_or_phd": None,
+        "comments": None,
+        "date_added": None,
+        "url": None,
+        "applicant_status": None,
+        "decision_date": None,
+        "semester_year_start": None,
+        "citizenship": None,
+        "gpa": None,
+        "gre": None,
+        "gre_v": None,
+        "gre_aw": None,
+    }
+
+
+def _parse_decision(decision_text):
+    """Split a decision string into status and optional date."""
+    if not decision_text:
+        return None, None
+    normalized = re.sub(r"\s+", " ", decision_text).strip()
+    match = re.match(
+        r"^(?P<status>.+?)(?:\s+on\s+(?P<date>.+))?$",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None, None
+    status = match.group("status").strip()
+    decision_date = match.group("date").strip() if match.group("date") else None
+    return status, decision_date
+
+
+def _apply_detail_text(record, text):
+    """Apply one detail text token to the current record."""
+    if re.match(r"^(Fall|Spring|Summer|Winter)\s+\d{4}$", text):
+        record["semester_year_start"] = text
+        return
+    if text in ("American", "International"):
+        record["citizenship"] = text
+        return
+    if re.match(r"^GPA\s+[\d.]+$", text):
+        record["gpa"] = text
+        return
+    if re.match(r"^GRE\s+AW\s+[\d.]+$", text):
+        record["gre_aw"] = text
+        return
+    if re.match(r"^GRE\s+V\s+\d+$", text):
+        record["gre_v"] = text
+        return
+    if re.match(r"^GRE\s+\d+$", text):
+        record["gre"] = text
+
+
+def _fill_following_rows(cases, start_index, record):
+    """Read detail rows after a main row and return the next main-row index."""
+    idx = start_index
+    while idx < len(cases):
+        next_tds = cases[idx].find_all("td")
+        if len(next_tds) >= 4:
+            break
+
+        for div in cases[idx].find_all("div"):
+            text = div.get_text(" ", strip=True)
+            if text:
+                _apply_detail_text(record, text)
+
+        paragraph = cases[idx].find("p")
+        if paragraph and not record["comments"]:
+            comment_text = paragraph.get_text(" ", strip=True)
+            if comment_text:
+                record["comments"] = comment_text
+
+        idx += 1
+    return idx
+
+
+def _parse_main_row(case):
+    """Parse one main row and return a record, or None for non-main rows."""
+    tds = case.find_all("td")
+    if len(tds) < 4:
+        return None
+
+    record = _empty_record()
+    record["university"] = tds[0].get_text(strip=True)
+    spans = tds[1].find_all("span")
+    if spans:
+        record["program_name"] = spans[0].get_text(strip=True)
+    if len(spans) >= 2:
+        record["masters_or_phd"] = spans[1].get_text(strip=True)
+    record["date_added"] = tds[2].get_text(strip=True)
+
+    status, decision_date = _parse_decision(tds[3].get_text(" ", strip=True))
+    record["applicant_status"] = status
+    record["decision_date"] = decision_date
+
+    link = case.find("a", href=lambda value: value and value.startswith("/result/"))
+    if link:
+        record["url"] = f"{URL.rstrip('/')}{link['href']}"
+    return record
+
+
 def scrape_data(soup):
     """
     Parse the GradCafe results table into structured records.
@@ -103,118 +208,15 @@ def scrape_data(soup):
 
     # Look through all of the table rows
     cases = tbody.find_all("tr")
-    i = 0
+    idx = 0
+    while idx < len(cases):
+        record = _parse_main_row(cases[idx])
+        if record is None:
+            idx += 1
+            continue
 
-    # Loop through table rows
-    while i < len(cases):
-        case = cases[i]
-        tds = case.find_all("td")
-
-        # Only pull records with at least 4 table rows
-        if len(tds) >=4:
-
-            # Initailize the dictionary we will use
-            record = {
-                "program_name": None,
-                "university": None,
-                "masters_or_phd": None,
-                "comments": None,
-                "date_added": None,
-                "url": None,
-                "applicant_status": None,
-                "decision_date": None,
-                "semester_year_start": None,
-                "citizenship": None,
-                "gpa": None,
-                "gre": None,
-                "gre_v": None,
-                "gre_aw": None,
-            }
-
-            # Pull university
-            record["university"] = tds[0].get_text(strip=True)
-
-            # Pull program name and masters/PhD
-            spans = tds[1].find_all("span")
-            if len(spans) >= 1:
-                record["program_name"] = spans[0].get_text(strip=True)
-            if len(spans) >= 2:
-                record["masters_or_phd"] = spans[1].get_text(strip=True)
-
-            # Pull date infomration was added to grad cafe
-            record["date_added"] = tds[2].get_text(strip=True)
-
-            # Pull applicant status and decision date
-            decision_text = tds[3].get_text(" ", strip=True)
-
-            # Use re to separate status and date
-            if decision_text:
-                decision_text = re.sub(r"\s+", " ", decision_text).strip()
-
-                m = re.match(r"^(?P<status>.+?)(?:\s+on\s+(?P<date>.+))?$",
-                             decision_text, flags=re.IGNORECASE)
-                if m:
-                    record["applicant_status"] = m.group("status").strip()
-                    record["decision_date"] = m.group("date").strip() if m.group("date") else None
-
-            # Pull URL link to applicant entry
-            link = case.find("a", href=lambda x: x and x.startswith("/result/"))
-            if link:
-                record["url"] = "https://www.thegradcafe.com" + link["href"]
-
-            # Look through next rows
-            j = i + 1
-            while j < len(cases):
-                next_tds = cases[j].find_all("td")
-
-                # Do not continue if this is a new case
-                if len(next_tds)>=4:
-                    break
-
-                # Look through data in div
-                for div in cases[j].find_all("div"):
-                    text = div.get_text(" ", strip=True)
-                    if not text:
-                        continue
-
-                    # Pull semester and year of program start (if available)
-                    if re.match(r"^(Fall|Spring|Summer|Winter)\s+\d{4}$", text):
-                        record["semester_year_start"] = text
-
-                    # Pull if International / American Student (if available)
-                    elif text in ("American", "International"):
-                        record["citizenship"] = text
-
-                    #Pull GPA (if available)
-                    elif re.match(r"^GPA\s+[\d.]+$", text):
-                        record["gpa"] = text
-
-                    # Pull GRE Score, GRE V Score, GRE AW (if available)
-                    elif re.match(r"^GRE\s+AW\s+[\d.]+$", text):
-                        record["gre_aw"] = text
-                    elif re.match(r"^GRE\s+V\s+\d+$", text):
-                        record["gre_v"] = text
-                    elif re.match(r"^GRE\s+\d+$", text):
-                        record["gre"] = text
-
-                # Pull Comments (if available)
-                p = cases[j].find("p")
-
-                if p and not record["comments"]:
-                    comment_text = p.get_text(" ", strip=True)
-
-                    if comment_text:
-                        record["comments"] = comment_text
-
-                j += 1
-
-            # Store the record and then review next record
-            results.append(record)
-            i = j
-
-        # Not a new record - keep reviewing the next row
-        else:
-            i += 1
+        idx = _fill_following_rows(cases, idx + 1, record)
+        results.append(record)
 
     # Return all of the data
     return results

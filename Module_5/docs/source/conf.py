@@ -6,10 +6,10 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'Sphinx_Doc'
-copyright = '2026, Helen Zhang'
-author = 'Helen Zhang'
-release = '1.0'
+Project = 'Sphinx_Doc'
+Copyright = '2026, Helen Zhang'
+Author = 'Helen Zhang'
+Release = '1.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

@@ -27,6 +27,14 @@ RAW_FILE = os.path.join(BASE_DIR, "applicant_data.json")
 # App config
 PULL_TARGET_N = 200
 PULL_STATE = {"status": "idle", "message": ""}
+PIPELINE_ERRORS = (
+    OSError,
+    subprocess.SubprocessError,
+    ValueError,
+    TypeError,
+    AttributeError,
+    RuntimeError,
+)
 
 
 def fnum(value):
@@ -278,7 +286,7 @@ def run_pull_pipeline():
             check=True,
         )
 
-        # Run the clean.py script to clean the raw data and then load_data.py to insert into the database
+        # Run clean.py to clean the raw data and then load_data.py to insert into the database
         subprocess.run(
             [sys.executable, os.path.join(BASE_DIR, "clean.py")],
             cwd=BASE_DIR,
@@ -307,7 +315,7 @@ def run_pull_pipeline():
         return True
 
     # Store any errors for the website
-    except Exception as exc:
+    except PIPELINE_ERRORS as exc:
         PULL_STATE["status"] = "error"
         PULL_STATE["message"] = f"Pull failed: {exc}"
         return False
@@ -322,6 +330,7 @@ def fetch_metrics() -> dict:
 
     with psycopg.connect(DSN) as conn:
         with conn.cursor() as cur:
+            metrics = {}
 
             # Question 1
             cur.execute(
@@ -332,34 +341,67 @@ def fetch_metrics() -> dict:
                 """,
                 ("Fall 2026",),
             )
-            fall_2026_count = cur.fetchone()[0]
+            metrics["fall_2026_count"] = cur.fetchone()[0]
 
             # Question 2
             cur.execute(
                 """
                 SELECT
                     ROUND(
-                        100.0 * SUM(CASE WHEN us_or_international = 'International' THEN 1 ELSE 0 END)
+                        100.0 * SUM(
+                            CASE
+                                WHEN us_or_international = 'International' THEN 1
+                                ELSE 0
+                            END
+                        )
                         / NULLIF(COUNT(*), 0),
                         2
                     )
                 FROM applicants;
                 """
             )
-            intl_pct = cur.fetchone()[0]
+            metrics["intl_pct"] = cur.fetchone()[0]
 
             # Question 3
             cur.execute(
                 """
                 SELECT
-                    ROUND((AVG(gpa) FILTER (WHERE gpa IS NOT NULL AND gpa BETWEEN 0 AND 4.33))::numeric, 2) AS avg_gpa,
-                    ROUND((AVG(gre) FILTER (WHERE gre IS NOT NULL AND gre BETWEEN 0 AND 340))::numeric, 2) AS avg_gre,
-                    ROUND((AVG(gre_v) FILTER (WHERE gre_v IS NOT NULL AND gre_v BETWEEN 0 AND 170))::numeric, 2) AS avg_gre_v,
-                    ROUND((AVG(gre_aw) FILTER (WHERE gre_aw IS NOT NULL AND gre_aw BETWEEN 0 AND 6.0))::numeric, 2) AS avg_gre_aw
+                    ROUND(
+                        (AVG(gpa) FILTER (
+                            WHERE gpa IS NOT NULL
+                              AND gpa BETWEEN 0 AND 4.33
+                        ))::numeric,
+                        2
+                    ) AS avg_gpa,
+                    ROUND(
+                        (AVG(gre) FILTER (
+                            WHERE gre IS NOT NULL
+                              AND gre BETWEEN 0 AND 340
+                        ))::numeric,
+                        2
+                    ) AS avg_gre,
+                    ROUND(
+                        (AVG(gre_v) FILTER (
+                            WHERE gre_v IS NOT NULL
+                              AND gre_v BETWEEN 0 AND 170
+                        ))::numeric,
+                        2
+                    ) AS avg_gre_v,
+                    ROUND(
+                        (AVG(gre_aw) FILTER (
+                            WHERE gre_aw IS NOT NULL
+                              AND gre_aw BETWEEN 0 AND 6.0
+                        ))::numeric,
+                        2
+                    ) AS avg_gre_aw
                 FROM applicants;
                 """
             )
-            avg_gpa, avg_gre, avg_gre_v, avg_gre_aw = cur.fetchone()
+            row = cur.fetchone()
+            metrics["avg_gpa"] = row[0]
+            metrics["avg_gre"] = row[1]
+            metrics["avg_gre_v"] = row[2]
+            metrics["avg_gre_aw"] = row[3]
 
             # Question 4
             cur.execute(
@@ -374,7 +416,7 @@ def fetch_metrics() -> dict:
                 """,
                 ("%Fall 2026%",),
             )
-            avg_gpa_american_fall_2026 = cur.fetchone()[0]
+            metrics["avg_gpa_american_fall_2026"] = cur.fetchone()[0]
 
             # Question 5
             cur.execute(
@@ -390,7 +432,7 @@ def fetch_metrics() -> dict:
                 """,
                 ("Fall 2026",),
             )
-            acceptance_pct_fall_2026 = cur.fetchone()[0]
+            metrics["acceptance_pct_fall_2026"] = cur.fetchone()[0]
 
             # Question 6
             cur.execute(
@@ -405,7 +447,7 @@ def fetch_metrics() -> dict:
                 """,
                 ("Fall 2026",),
             )
-            avg_gpa_accepted_fall_2026 = cur.fetchone()[0]
+            metrics["avg_gpa_accepted_fall_2026"] = cur.fetchone()[0]
 
             # Question 7
             cs_patterns = ["%Computer Science%"]
@@ -426,7 +468,7 @@ def fetch_metrics() -> dict:
                 """,
                 (cs_patterns, cs_patterns, jhu_patterns, jhu_patterns),
             )
-            jhu_ms_cs_count = cur.fetchone()[0]
+            metrics["jhu_ms_cs_count"] = cur.fetchone()[0]
 
             # Question 8
             cs_patterns = ["%Computer Science%"]
@@ -450,7 +492,7 @@ def fetch_metrics() -> dict:
                 """,
                 (cs_patterns, uni_patterns),
             )
-            cs_phd_accept_2026 = cur.fetchone()[0]
+            metrics["cs_phd_accept_2026"] = cur.fetchone()[0]
 
             # Question 9
             cur.execute(
@@ -465,7 +507,7 @@ def fetch_metrics() -> dict:
                 """,
                 (cs_patterns, uni_patterns),
             )
-            cs_phd_accept_2026_llm = cur.fetchone()[0]
+            metrics["cs_phd_accept_2026_llm"] = cur.fetchone()[0]
 
             # Question 10
             unc_patterns = [
@@ -493,7 +535,7 @@ def fetch_metrics() -> dict:
                 """,
                 (unc_patterns, unc_patterns),
             )
-            unc_masters_program_rows = cur.fetchall()
+            metrics["unc_masters_program_rows"] = cur.fetchall()
 
             # Question 11
             unc_patterns = [
@@ -523,25 +565,10 @@ def fetch_metrics() -> dict:
                 """,
                 (program_patterns, unc_patterns),
             )
-            unc_phd_program_rows = cur.fetchall()
+            metrics["unc_phd_program_rows"] = cur.fetchall()
 
     # Return the answers to the questions
-    return {
-        "fall_2026_count": fall_2026_count,
-        "intl_pct": intl_pct,
-        "avg_gpa": avg_gpa,
-        "avg_gre": avg_gre,
-        "avg_gre_v": avg_gre_v,
-        "avg_gre_aw": avg_gre_aw,
-        "avg_gpa_american_fall_2026": avg_gpa_american_fall_2026,
-        "acceptance_pct_fall_2026": acceptance_pct_fall_2026,
-        "avg_gpa_accepted_fall_2026": avg_gpa_accepted_fall_2026,
-        "jhu_ms_cs_count": jhu_ms_cs_count,
-        "cs_phd_accept_2026": cs_phd_accept_2026,
-        "cs_phd_accept_2026_llm": cs_phd_accept_2026_llm,
-        "unc_masters_program_rows": unc_masters_program_rows,
-        "unc_phd_program_rows": unc_phd_program_rows,
-    }
+    return metrics
 
 
 def pull_data():
@@ -559,7 +586,7 @@ def pull_data():
     run_fn = current_app.config.get("RUN_PULL_PIPELINE", run_pull_pipeline)
     try:
         result = run_fn()
-    except Exception as exc:
+    except PIPELINE_ERRORS as exc:
         PULL_STATE["status"] = "error"
         PULL_STATE["message"] = f"Pull failed: {exc}"
         return jsonify({"ok": False, "error": PULL_STATE["message"]}), 500
@@ -597,15 +624,23 @@ def index():
     # Format the SQL questions
     questions = [
         {
-            "question": "How many entries do you have in your database who have applied for Fall 2026?",
+            "question": (
+                "How many entries do you have in your database who have applied for Fall 2026?"
+            ),
             "answer": f"Fall 2026 Applicants: {metrics['fall_2026_count']}",
         },
         {
-            "question": "What percentage of entries are from international students (not American or Other)?",
+            "question": (
+                "What percentage of entries are from international students "
+                "(not American or Other)?"
+            ),
             "answer": f"Percentage International: {fmt_pct(metrics['intl_pct'])}",
         },
         {
-            "question": "What is the average GPA, GRE, GRE V, GRE AW of applicants who provide these metrics?",
+            "question": (
+                "What is the average GPA, GRE, GRE V, GRE AW of applicants "
+                "who provide these metrics?"
+            ),
             "answer_lines": [
                 f"Average GPA: {metrics['avg_gpa']}",
                 f"Average GRE: {metrics['avg_gre']}",
@@ -619,11 +654,20 @@ def index():
         },
         {
             "question": "What percent of entries for Fall 2026 are Acceptances?",
-            "answer": f"Fall 2026 Acceptance percent: {fmt_pct(metrics['acceptance_pct_fall_2026'])}",
+            "answer": (
+                "Fall 2026 Acceptance percent: "
+                f"{fmt_pct(metrics['acceptance_pct_fall_2026'])}"
+            ),
         },
         {
-            "question": "What is the average GPA of applicants who applied for Fall 2026 who are Acceptances?",
-            "answer": f"Average GPA of Fall 2026 Acceptances: {metrics['avg_gpa_accepted_fall_2026']}",
+            "question": (
+                "What is the average GPA of applicants who applied for "
+                "Fall 2026 who are Acceptances?"
+            ),
+            "answer": (
+                "Average GPA of Fall 2026 Acceptances: "
+                f"{metrics['avg_gpa_accepted_fall_2026']}"
+            ),
         },
         {
             "question": "How many entries are from applicants who applied to JHU for a "
@@ -632,8 +676,10 @@ def index():
         },
         {
             "question": (
-                "How many entries from 2026 are acceptances from applicants who applied to Georgetown University, "
-                "MIT, Stanford University, or Carnegie Mellon University for a PhD in Computer Science?"
+                "How many entries from 2026 are acceptances from applicants "
+                "who applied to Georgetown University, "
+                "MIT, Stanford University, or Carnegie Mellon University "
+                "for a PhD in Computer Science?"
             ),
             "answer": (
                 "Accepted 2026 PhD CS applicants at Georgetown/MIT/Stanford/CMU: "
@@ -648,8 +694,10 @@ def index():
             ),
         },
         {
-            "question": "For UNC Chapel Hill Fall 2026 semester, how many accepted Master’s applicants "
-                        "were there by program?",
+            "question": (
+                "For UNC Chapel Hill Fall 2026 semester, how many accepted "
+                "Master’s applicants were there by program?"
+            ),
             "answer_lines": [
                 f"{program_name or 'Unknown'}: {count}"
                 for program_name, count in metrics["unc_masters_program_rows"]
@@ -657,7 +705,8 @@ def index():
         },
         {
             "question": (
-                "For UNC Chapel Hill Fall 2026 semester, how many PhD applicants in Biostatics or Epidemiology "
+                "For UNC Chapel Hill Fall 2026 semester, how many PhD "
+                "applicants in Biostatics or Epidemiology "
                 "were there by program?"
             ),
             "answer_lines": [
