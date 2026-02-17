@@ -1,0 +1,4 @@
+sphinx
+flask
+psycopg[binary]
+beautifulsoup4
