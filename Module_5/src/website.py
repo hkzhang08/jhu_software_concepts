@@ -9,23 +9,92 @@ interactive use and automated testing (via dependency injection).
 
 # Imports to display analysis results from a PostgreSQL database
 import json
+import logging
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
 import psycopg
+from psycopg import sql
 from flask import Flask, current_app, jsonify, render_template
 
+try:
+    from .db_config import get_db_dsn
+except ImportError:  # pragma: no cover - script execution path
+    from db_config import get_db_dsn
+
 # Create connections and paths to database
-DSN = os.environ["DATABASE_URL"]
+DSN = get_db_dsn()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.abspath(os.path.join(BASE_DIR, "templates"))
 STATIC_DIR = os.path.abspath(os.path.join(BASE_DIR, "static"))
 RAW_FILE = os.path.join(BASE_DIR, "applicant_data.json")
+APPLICANTS_TABLE = sql.Identifier("applicants")
+APPLICANTS_COLUMN_NAMES = (
+    "p_id",
+    "program",
+    "comments",
+    "date_added",
+    "url",
+    "status",
+    "term",
+    "us_or_international",
+    "gpa",
+    "gre",
+    "gre_v",
+    "gre_aw",
+    "degree",
+    "llm_generated_program",
+    "llm_generated_university",
+)
+APPLICANTS_COLUMNS = {
+    column_name: sql.Identifier(column_name)
+    for column_name in APPLICANTS_COLUMN_NAMES
+}
+APPLICANTS_SCHEMA = (
+    ("p_id", sql.SQL("SERIAL PRIMARY KEY")),
+    ("program", sql.SQL("TEXT")),
+    ("comments", sql.SQL("TEXT")),
+    ("date_added", sql.SQL("DATE")),
+    ("url", sql.SQL("TEXT")),
+    ("status", sql.SQL("TEXT")),
+    ("term", sql.SQL("TEXT")),
+    ("us_or_international", sql.SQL("TEXT")),
+    ("gpa", sql.SQL("DOUBLE PRECISION")),
+    ("gre", sql.SQL("DOUBLE PRECISION")),
+    ("gre_v", sql.SQL("DOUBLE PRECISION")),
+    ("gre_aw", sql.SQL("DOUBLE PRECISION")),
+    ("degree", sql.SQL("DOUBLE PRECISION")),
+    ("llm_generated_program", sql.SQL("TEXT")),
+    ("llm_generated_university", sql.SQL("TEXT")),
+)
+APPLICANTS_INSERT_COLUMN_NAMES = (
+    "program",
+    "comments",
+    "date_added",
+    "url",
+    "status",
+    "term",
+    "us_or_international",
+    "gpa",
+    "gre",
+    "gre_v",
+    "gre_aw",
+    "degree",
+    "llm_generated_program",
+    "llm_generated_university",
+)
 
 # App config
 PULL_TARGET_N = 200
+QUERY_LIMIT_MIN = 1
+QUERY_LIMIT_MAX = 100
+QUERY_LIMIT_DEFAULT = 100
+QUERY_LIMIT_ENV_VAR = "QUERY_LIMIT"
+PULL_ERROR_MESSAGE = "Pull failed due to an internal error."
+ANALYSIS_ERROR_MESSAGE = "Analysis is temporarily unavailable. Please try again later."
+LOGGER = logging.getLogger(__name__)
 PULL_STATE = {"status": "idle", "message": ""}
 PIPELINE_ERRORS = (
     OSError,
@@ -139,6 +208,38 @@ def fmt_pct(value):
         return str(value)
 
 
+def clamp_query_limit(value=None):
+    """
+    Clamp query LIMIT values to the allowed range.
+
+    :param value: Optional candidate LIMIT value.
+    :returns: Integer LIMIT clamped to [QUERY_LIMIT_MIN, QUERY_LIMIT_MAX].
+    """
+
+    if value is None:
+        value = os.environ.get(QUERY_LIMIT_ENV_VAR, QUERY_LIMIT_DEFAULT)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = QUERY_LIMIT_DEFAULT
+    return max(QUERY_LIMIT_MIN, min(QUERY_LIMIT_MAX, parsed))
+
+
+def applicants_sql(query_template: str, **identifiers):
+    """
+    Compose SQL with safely quoted identifier placeholders.
+
+    :param query_template: SQL string template containing ``{table}`` and
+        optional identifier placeholders.
+    :param identifiers: Extra identifier/value placeholders for SQL ``format``.
+    :returns: Composed SQL object safe for execution.
+    """
+
+    format_args = {"table": APPLICANTS_TABLE}
+    format_args.update(identifiers)
+    return sql.SQL(query_template).format(**format_args)
+
+
 def ensure_applicant_table(cur):
     """
     Ensure the applicants table exists.
@@ -147,36 +248,26 @@ def ensure_applicant_table(cur):
     :returns: None.
     """
 
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS applicants (
-            p_id SERIAL PRIMARY KEY,
-            program TEXT,
-            comments TEXT,
-            date_added DATE,
-            url TEXT,
-            status TEXT,
-            term TEXT,
-            us_or_international TEXT,
-            gpa DOUBLE PRECISION,
-            gre DOUBLE PRECISION,
-            gre_v DOUBLE PRECISION,
-            gre_aw DOUBLE PRECISION,
-            degree DOUBLE PRECISION,
-            llm_generated_program TEXT,
-            llm_generated_university TEXT
-        );
-        """
+    column_defs = [
+        sql.SQL("{} {}").format(APPLICANTS_COLUMNS[column_name], column_type)
+        for column_name, column_type in APPLICANTS_SCHEMA
+    ]
+    stmt = applicants_sql(
+        "CREATE TABLE IF NOT EXISTS {table} ({column_defs});",
+        column_defs=sql.SQL(", ").join(column_defs),
     )
+    cur.execute(stmt)
 
 
-def load_cleaned_data_to_db(file_path: str) -> int:
+def load_cleaned_data_to_db(file_path: str, query_limit=None) -> int:
     """
     Load cleaned records from a JSON file into the applicants table.
 
     :param file_path: Path to a JSON array file of cleaned rows.
     :returns: Number of inserted rows.
     """
+
+    query_limit = clamp_query_limit(query_limit)
 
     # If file does not exist, return 0
     if not os.path.exists(file_path):
@@ -194,8 +285,29 @@ def load_cleaned_data_to_db(file_path: str) -> int:
             ensure_applicant_table(cur)
 
             # Create set of URLS to remove duplicates
-            cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
-            existing_urls = {row[0] for row in cur.fetchall()}
+            existing_urls = set()
+            offset = 0
+            while True:
+                stmt = applicants_sql(
+                    """
+                    SELECT {url_col}
+                    FROM {table}
+                    WHERE {url_col} IS NOT NULL
+                    ORDER BY {url_col}
+                    LIMIT %s OFFSET %s;
+                    """,
+                    url_col=APPLICANTS_COLUMNS["url"],
+                )
+                params = (query_limit, offset)
+                cur.execute(stmt, params)
+                url_rows = cur.fetchall()
+                if not url_rows:
+                    break
+                existing_urls.update(row[0] for row in url_rows)
+                if len(url_rows) < query_limit:
+                    break
+                offset += query_limit
+
             seen_urls = set(existing_urls)
 
             # Check urls of data
@@ -229,28 +341,19 @@ def load_cleaned_data_to_db(file_path: str) -> int:
 
             # Bulk insert new rows
             if inserts:
-                cur.executemany(
-                    """
-                    INSERT INTO applicants (
-                        program,
-                        comments,
-                        date_added,
-                        url,
-                        status,
-                        term,
-                        us_or_international,
-                        gpa,
-                        gre,
-                        gre_v,
-                        gre_aw,
-                        degree,
-                        llm_generated_program,
-                        llm_generated_university
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-                    """,
-                    inserts,
+                insert_columns = sql.SQL(", ").join(
+                    APPLICANTS_COLUMNS[column_name]
+                    for column_name in APPLICANTS_INSERT_COLUMN_NAMES
                 )
+                placeholders = sql.SQL(", ").join(
+                    sql.Placeholder() for _ in APPLICANTS_INSERT_COLUMN_NAMES
+                )
+                stmt = applicants_sql(
+                    "INSERT INTO {table} ({insert_columns}) VALUES ({values});",
+                    insert_columns=insert_columns,
+                    values=placeholders,
+                )
+                cur.executemany(stmt, inserts)
 
         # Commit and save new records
         conn.commit()
@@ -315,88 +418,100 @@ def run_pull_pipeline():
         return True
 
     # Store any errors for the website
-    except PIPELINE_ERRORS as exc:
+    except PIPELINE_ERRORS:
+        LOGGER.exception("Pull pipeline failed")
         PULL_STATE["status"] = "error"
-        PULL_STATE["message"] = f"Pull failed: {exc}"
+        PULL_STATE["message"] = PULL_ERROR_MESSAGE
         return False
 
 
-def fetch_metrics() -> dict:
+def fetch_metrics(query_limit=None) -> dict:
     """
     Query the database and return metrics used by the analysis page.
 
+    :param query_limit: Optional per-query LIMIT value.
     :returns: Dict of computed metrics for the analysis template.
     """
+
+    query_limit = clamp_query_limit(query_limit)
 
     with psycopg.connect(DSN) as conn:
         with conn.cursor() as cur:
             metrics = {}
 
             # Question 1
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT COUNT(*)
-                FROM applicants
-                WHERE term ILIKE %s;
-                """,
-                ("Fall 2026",),
+                FROM {table}
+                WHERE term ILIKE %s
+                LIMIT %s;
+                """
             )
+            params = ("Fall 2026", query_limit)
+            cur.execute(stmt, params)
             metrics["fall_2026_count"] = cur.fetchone()[0]
 
             # Question 2
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT
                     ROUND(
                         100.0 * SUM(
                             CASE
-                                WHEN us_or_international = 'International' THEN 1
+                                WHEN us_or_international = %s THEN 1
                                 ELSE 0
                             END
                         )
                         / NULLIF(COUNT(*), 0),
                         2
                     )
-                FROM applicants;
+                FROM {table}
+                LIMIT %s;
                 """
             )
+            params = ("International", query_limit)
+            cur.execute(stmt, params)
             metrics["intl_pct"] = cur.fetchone()[0]
 
             # Question 3
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT
                     ROUND(
                         (AVG(gpa) FILTER (
                             WHERE gpa IS NOT NULL
-                              AND gpa BETWEEN 0 AND 4.33
+                              AND gpa BETWEEN %s AND %s
                         ))::numeric,
                         2
                     ) AS avg_gpa,
                     ROUND(
                         (AVG(gre) FILTER (
                             WHERE gre IS NOT NULL
-                              AND gre BETWEEN 0 AND 340
+                              AND gre BETWEEN %s AND %s
                         ))::numeric,
                         2
                     ) AS avg_gre,
                     ROUND(
                         (AVG(gre_v) FILTER (
                             WHERE gre_v IS NOT NULL
-                              AND gre_v BETWEEN 0 AND 170
+                              AND gre_v BETWEEN %s AND %s
                         ))::numeric,
                         2
                     ) AS avg_gre_v,
                     ROUND(
                         (AVG(gre_aw) FILTER (
                             WHERE gre_aw IS NOT NULL
-                              AND gre_aw BETWEEN 0 AND 6.0
+                              AND gre_aw BETWEEN %s AND %s
                         ))::numeric,
                         2
                     ) AS avg_gre_aw
-                FROM applicants;
+                FROM {table}
+                LIMIT %s;
                 """
             )
+            params = (0, 4.33, 0, 340, 0, 170, 0, 6.0, query_limit)
+            cur.execute(stmt, params)
             row = cur.fetchone()
             metrics["avg_gpa"] = row[0]
             metrics["avg_gre"] = row[1]
@@ -404,59 +519,65 @@ def fetch_metrics() -> dict:
             metrics["avg_gre_aw"] = row[3]
 
             # Question 4
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT
                     ROUND((AVG(gpa) FILTER (WHERE gpa IS NOT NULL))::numeric, 2) AS avg_gpa
-                FROM applicants
-                WHERE us_or_international = 'American'
+                FROM {table}
+                WHERE us_or_international = %s
                   AND term ILIKE %s
                   AND gpa IS NOT NULL
-                  AND gpa <= 4.33;
-                """,
-                ("%Fall 2026%",),
+                  AND gpa <= %s
+                LIMIT %s;
+                """
             )
+            params = ("American", "%Fall 2026%", 4.33, query_limit)
+            cur.execute(stmt, params)
             metrics["avg_gpa_american_fall_2026"] = cur.fetchone()[0]
 
             # Question 5
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT
                     ROUND(
-                        100.0 * SUM(CASE WHEN status = 'Accepted' THEN 1 ELSE 0 END)
+                        100.0 * SUM(CASE WHEN status = %s THEN 1 ELSE 0 END)
                         / NULLIF(COUNT(*), 0),
                         2
                     )
-                FROM applicants
-                WHERE term ILIKE %s;
-                """,
-                ("Fall 2026",),
+                FROM {table}
+                WHERE term ILIKE %s
+                LIMIT %s;
+                """
             )
+            params = ("Accepted", "Fall 2026", query_limit)
+            cur.execute(stmt, params)
             metrics["acceptance_pct_fall_2026"] = cur.fetchone()[0]
 
             # Question 6
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT
                     ROUND(AVG(gpa)::numeric, 2) AS avg_gpa
-                FROM applicants
-                WHERE status = 'Accepted'
+                FROM {table}
+                WHERE status = %s
                   AND term ILIKE %s
                   AND gpa IS NOT NULL
-                  AND gpa <= 4.33;
-                """,
-                ("Fall 2026",),
+                  AND gpa <= %s
+                LIMIT %s;
+                """
             )
+            params = ("Accepted", "Fall 2026", 4.33, query_limit)
+            cur.execute(stmt, params)
             metrics["avg_gpa_accepted_fall_2026"] = cur.fetchone()[0]
 
             # Question 7
             cs_patterns = ["%Computer Science%"]
             jhu_patterns = ["%Johns Hopkins%", "%John Hopkins%", "%JHU%"]
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT COUNT(*)
-                FROM applicants
-                WHERE degree = 1.0
+                FROM {table}
+                WHERE degree = %s
                   AND (
                         program ILIKE ANY (%s)
                      OR llm_generated_program ILIKE ANY (%s)
@@ -464,10 +585,12 @@ def fetch_metrics() -> dict:
                   AND (
                         program ILIKE ANY (%s)
                      OR llm_generated_university ILIKE ANY (%s)
-                  );
-                """,
-                (cs_patterns, cs_patterns, jhu_patterns, jhu_patterns),
+                  )
+                LIMIT %s;
+                """
             )
+            params = (1.0, cs_patterns, cs_patterns, jhu_patterns, jhu_patterns, query_limit)
+            cur.execute(stmt, params)
             metrics["jhu_ms_cs_count"] = cur.fetchone()[0]
 
             # Question 8
@@ -480,33 +603,53 @@ def fetch_metrics() -> dict:
                 "%Carnegie Mellon%",
                 "%CMU%",
             ]
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT COUNT(*)
-                FROM applicants
-                WHERE status = 'Accepted'
-                  AND degree = 2.0
-                  AND term in ('Fall 2026', 'Spring 2026')
+                FROM {table}
+                WHERE status = %s
+                  AND degree = %s
+                  AND term in (%s, %s)
                   AND program ILIKE ANY (%s)
-                  AND program ILIKE ANY (%s);
-                """,
-                (cs_patterns, uni_patterns),
+                  AND program ILIKE ANY (%s)
+                LIMIT %s;
+                """
             )
+            params = (
+                "Accepted",
+                2.0,
+                "Fall 2026",
+                "Spring 2026",
+                cs_patterns,
+                uni_patterns,
+                query_limit,
+            )
+            cur.execute(stmt, params)
             metrics["cs_phd_accept_2026"] = cur.fetchone()[0]
 
             # Question 9
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT COUNT(*)
-                FROM applicants
-                WHERE status = 'Accepted'
-                  AND degree = 2.0
-                  AND term in ('Fall 2026', 'Spring 2026')
+                FROM {table}
+                WHERE status = %s
+                  AND degree = %s
+                  AND term in (%s, %s)
                   AND llm_generated_program ILIKE ANY (%s)
-                  AND llm_generated_university ILIKE ANY (%s);
-                """,
-                (cs_patterns, uni_patterns),
+                  AND llm_generated_university ILIKE ANY (%s)
+                LIMIT %s;
+                """
             )
+            params = (
+                "Accepted",
+                2.0,
+                "Fall 2026",
+                "Spring 2026",
+                cs_patterns,
+                uni_patterns,
+                query_limit,
+            )
+            cur.execute(stmt, params)
             metrics["cs_phd_accept_2026_llm"] = cur.fetchone()[0]
 
             # Question 10
@@ -517,24 +660,26 @@ def fetch_metrics() -> dict:
                 "%University of North Carolina at Chapel Hill%",
                 "%Chapel Hill%",
             ]
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT
                     COALESCE(llm_generated_program, program) AS program_name,
                     COUNT(*) AS n
-                FROM applicants
-                WHERE degree = 1.0
-                  AND status = 'Accepted'
-                  AND term = 'Fall 2026'
+                FROM {table}
+                WHERE degree = %s
+                  AND status = %s
+                  AND term = %s
                   AND (
                         program ILIKE ANY (%s)
                      OR llm_generated_university ILIKE ANY (%s)
                   )
                 GROUP BY program_name
-                ORDER BY n DESC, program_name;
-                """,
-                (unc_patterns, unc_patterns),
+                ORDER BY n DESC, program_name
+                LIMIT %s;
+                """
             )
+            params = (1.0, "Accepted", "Fall 2026", unc_patterns, unc_patterns, query_limit)
+            cur.execute(stmt, params)
             metrics["unc_masters_program_rows"] = cur.fetchall()
 
             # Question 11
@@ -546,25 +691,27 @@ def fetch_metrics() -> dict:
                 "%Chapel Hill%",
             ]
             program_patterns = ["%Biostat%", "%Epidemiolog%"]
-            cur.execute(
+            stmt = applicants_sql(
                 """
                 SELECT
                     llm_generated_program,
                     COUNT(*) AS n
-                FROM applicants
-                WHERE degree = 2.0
-                  AND term = 'Fall 2026'
+                FROM {table}
+                WHERE degree = %s
+                  AND term = %s
                   AND (
                         llm_generated_program ILIKE ANY (%s)
                   )
-                  AND (
-                        llm_generated_university ILIKE ANY (%s)
-                  )
+                      AND (
+                            llm_generated_university ILIKE ANY (%s)
+                      )
                 GROUP BY llm_generated_program
-                ORDER BY n DESC, llm_generated_program;
-                """,
-                (program_patterns, unc_patterns),
+                ORDER BY n DESC, llm_generated_program
+                LIMIT %s;
+                """
             )
+            params = (2.0, "Fall 2026", program_patterns, unc_patterns, query_limit)
+            cur.execute(stmt, params)
             metrics["unc_phd_program_rows"] = cur.fetchall()
 
     # Return the answers to the questions
@@ -586,13 +733,14 @@ def pull_data():
     run_fn = current_app.config.get("RUN_PULL_PIPELINE", run_pull_pipeline)
     try:
         result = run_fn()
-    except PIPELINE_ERRORS as exc:
+    except PIPELINE_ERRORS:
+        current_app.logger.exception("Pull request failed before completion")
         PULL_STATE["status"] = "error"
-        PULL_STATE["message"] = f"Pull failed: {exc}"
-        return jsonify({"ok": False, "error": PULL_STATE["message"]}), 500
+        PULL_STATE["message"] = PULL_ERROR_MESSAGE
+        return jsonify({"ok": False, "error": PULL_ERROR_MESSAGE}), 500
 
     if result is False or PULL_STATE["status"] == "error":
-        return jsonify({"ok": False, "error": PULL_STATE["message"]}), 500
+        return jsonify({"ok": False, "error": PULL_ERROR_MESSAGE}), 500
 
     return jsonify({"ok": True}), 202
 
@@ -619,7 +767,17 @@ def index():
     """
 
     fetch_fn = current_app.config.get("FETCH_METRICS", fetch_metrics)
-    metrics = fetch_fn()
+    try:
+        metrics = fetch_fn()
+    except Exception:
+        current_app.logger.exception("Failed to fetch analysis metrics")
+        questions = [
+            {
+                "question": "Analysis currently unavailable.",
+                "answer": ANALYSIS_ERROR_MESSAGE,
+            }
+        ]
+        return render_template("index.html", questions=questions, pull_state=PULL_STATE), 503
 
     # Format the SQL questions
     questions = [

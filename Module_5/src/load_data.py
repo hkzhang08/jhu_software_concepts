@@ -14,6 +14,12 @@ import os
 import re
 from datetime import datetime
 import psycopg
+from psycopg import sql
+
+try:
+    from .db_config import get_db_dsn
+except ImportError:  # pragma: no cover - script execution path
+    from db_config import get_db_dsn
 
 
 # Path to LLM cleaned JSON data (new rows only)
@@ -22,7 +28,76 @@ DATA_PATH = os.path.join(BASE_DIR, "llm_new_applicant.json")
 ORIGINAL_PATH = os.path.join(BASE_DIR, "llm_extend_applicant_data.json")
 
 # Data source name for postgreSQL
-DSN = os.environ["DATABASE_URL"]
+DSN = get_db_dsn()
+APPLICANTS_TABLE = sql.Identifier("applicants")
+MIN_QUERY_LIMIT = 1
+MAX_QUERY_LIMIT = 100
+
+
+def clamp_limit(raw_limit):
+    """
+    Clamp any requested limit to the safe query window (1..100).
+
+    :param raw_limit: Raw value from configuration/input.
+    :returns: Integer limit constrained to [MIN_QUERY_LIMIT, MAX_QUERY_LIMIT].
+    """
+
+    try:
+        parsed_limit = int(raw_limit)
+    except (TypeError, ValueError):
+        return MAX_QUERY_LIMIT
+    return max(MIN_QUERY_LIMIT, min(parsed_limit, MAX_QUERY_LIMIT))
+
+
+QUERY_LIMIT = clamp_limit(os.environ.get("QUERY_LIMIT", MAX_QUERY_LIMIT))
+
+
+def applicants_sql(query_template: str):
+    """
+    Compose SQL with a safely quoted applicants table identifier.
+
+    :param query_template: SQL template containing ``{table}``.
+    :returns: Composed SQL object.
+    """
+
+    return sql.SQL(query_template).format(table=APPLICANTS_TABLE)
+
+
+def fetch_existing_urls(cur, batch_limit: int):
+    """
+    Read existing URLs in bounded pages so each query has an inherent LIMIT.
+
+    :param cur: Database cursor.
+    :param batch_limit: Page size for URL fetches.
+    :returns: Set of non-null existing URL strings.
+    """
+
+    stmt = applicants_sql(
+        """
+        SELECT url
+        FROM {table}
+        WHERE url IS NOT NULL
+        ORDER BY p_id
+        LIMIT %s OFFSET %s;
+        """
+    )
+    existing_urls = set()
+    offset = 0
+
+    while True:
+        params = (batch_limit, offset)
+        cur.execute(stmt, params)
+        batch = cur.fetchall()
+        if not batch:
+            break
+
+        existing_urls.update(url for (url,) in batch if url is not None)
+        if len(batch) < batch_limit:
+            break
+
+        offset += batch_limit
+
+    return existing_urls
 
 
 def fnum(value):
@@ -121,9 +196,9 @@ with psycopg.connect(DSN) as conn:
     with conn.cursor() as cur:
 
         # Create table for applicant_data and p_id if it doesnt already exist
-        cur.execute(
+        stmt = applicants_sql(
             """
-            CREATE TABLE IF NOT EXISTS applicants (
+            CREATE TABLE IF NOT EXISTS {table} (
                 p_id SERIAL PRIMARY KEY,
                 program TEXT,
                 comments TEXT,
@@ -142,13 +217,13 @@ with psycopg.connect(DSN) as conn:
             );
             """
         )
+        cur.execute(stmt)
 
         # Initialize rows
         rows = []
 
-        # Pull URLs already in the database
-        cur.execute("SELECT url FROM applicants WHERE url IS NOT NULL;")
-        existing_urls = {row[0] for row in cur.fetchall()}
+        # Pull URLs already in the database in bounded pages
+        existing_urls = fetch_existing_urls(cur, QUERY_LIMIT)
         seen_urls = set(existing_urls)
 
         def load_from_file(path):
@@ -205,9 +280,9 @@ with psycopg.connect(DSN) as conn:
 
         # Insert cleaned rows into the database
         if rows:
-            cur.executemany(
+            stmt = applicants_sql(
                 """
-                INSERT INTO applicants (
+                INSERT INTO {table} (
                     program,
                     comments,
                     date_added,
@@ -224,9 +299,9 @@ with psycopg.connect(DSN) as conn:
                     llm_generated_university
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-                """,
-                rows,
+                """
             )
+            cur.executemany(stmt, rows)
 
     # Commit and save changes
     conn.commit()

@@ -1,4 +1,4 @@
-# Grad Cafe Analytics Application (Module_4)
+# Grad Cafe Analytics Application (Module_5)
 
 This project is a Flask-based web application that allows users to view and analyze graduate admissions data. It includes a scraping/cleaning/loading pipeline, a PostgreSQL-backed analysis view, and a comprehensive pytest suite with full coverage.
 
@@ -15,24 +15,45 @@ This project is a Flask-based web application that allows users to view and anal
 
 - Python 3.13 (matches CI)
 - PostgreSQL (local or CI)
-- Required environment variable:
-  - `DATABASE_URL` (PostgreSQL connection string)
+- Database environment configuration (choose one):
+  - `DATABASE_URL` (PostgreSQL connection string), or
+  - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
 
-Example:
+Examples:
 
 ```bash
 export DATABASE_URL="postgresql://localhost/grad_cafe"
+```
+
+```bash
+export DB_HOST="localhost"
+export DB_PORT="5432"
+export DB_NAME="grad_cafe"
+export DB_USER="your_user"
+export DB_PASSWORD="your_password"
 ```
 
 ## Setup
 
 ```bash
-# From the Module_4 directory
+# From the Module_5 directory
 python3 -m venv .venv
 . .venv/bin/activate
 python3 -m pip install -r requirements.txt
 export DATABASE_URL="postgresql://localhost/grad_cafe"
 ```
+
+Or set the split DB variables instead of `DATABASE_URL`:
+
+```bash
+export DB_HOST="localhost"
+export DB_PORT="5432"
+export DB_NAME="grad_cafe"
+export DB_USER="your_user"
+export DB_PASSWORD="your_password"
+```
+
+Do not hard-code DB credentials in source files; provide them via environment variables.
 
 ## Run the App
 
@@ -118,8 +139,8 @@ incremental updates without duplicating data.
 
 **query_table.py** – The goal of this program is to run SQL queries against the
 PostgreSQL database and print answers to the assignment questions. It uses psycopg
-to connect to the database, runs each query, and prints the resulting metrics for
-assignment screenshots.
+to connect to the database using environment variables, runs each query, and prints
+the resulting metrics for assignment screenshots.
 
 **website.py** – The goal of this program is to provide a Flask webpage that displays
 the analysis results and offers two actions. Pull Data runs the full pipeline
@@ -149,7 +170,7 @@ Build docs:
 
 ```bash
 cd docs
-make html SPHINXBUILD=/Users/zhang8/PycharmProjects/jhu_software_concepts/Module_4/.venv/bin/sphinx-build
+make html SPHINXBUILD=/Users/zhang8/PycharmProjects/jhu_software_concepts/Module_5/.venv/bin/sphinx-build
 ```
 
 Open docs:

@@ -113,7 +113,7 @@ def test_run_pull_pipeline_error_sets_status(monkeypatch, tmp_path):
 
     website.run_pull_pipeline()
     assert website.PULL_STATE["status"] == "error"
-    assert "Pull failed: boom" in website.PULL_STATE["message"]
+    assert website.PULL_STATE["message"] == website.PULL_ERROR_MESSAGE
 
 
 def test_post_pull_data_returns_error_when_pipeline_fails():
@@ -130,7 +130,7 @@ def test_post_pull_data_returns_error_when_pipeline_fails():
 
     resp = client.post("/pull-data")
     assert resp.status_code == 500
-    assert resp.get_json() == {"ok": False, "error": "Pull failed: boom"}
+    assert resp.get_json() == {"ok": False, "error": website.PULL_ERROR_MESSAGE}
 
 
 def test_post_pull_data_returns_error_when_pipeline_raises():
@@ -145,7 +145,7 @@ def test_post_pull_data_returns_error_when_pipeline_raises():
 
     resp = client.post("/pull-data")
     assert resp.status_code == 500
-    assert resp.get_json() == {"ok": False, "error": "Pull failed: kaboom"}
+    assert resp.get_json() == {"ok": False, "error": website.PULL_ERROR_MESSAGE}
 
 
 def test_busy_gating_update_analysis_returns_409():

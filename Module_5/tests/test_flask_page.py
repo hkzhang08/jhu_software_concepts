@@ -108,6 +108,21 @@ def test_analysis_page_contains_buttons_and_text():
     assert "Answer" in body
 
 
+def test_index_route_handles_fetch_failure_without_leaking_error_text():
+    """GET /analysis returns a safe fallback response when metrics fail."""
+    def fake_metrics():
+        raise RuntimeError("secret token should not leak")
+
+    app = website.create_app(fetch_metrics_fn=fake_metrics)
+    app.config["TESTING"] = True
+    client = app.test_client()
+    resp = client.get("/analysis")
+    assert resp.status_code == 503
+    body = resp.get_data(as_text=True)
+    assert "Analysis is temporarily unavailable" in body
+    assert "secret token should not leak" not in body
+
+
 def test_pull_data_route_returns_ok_json(monkeypatch):
     """POST /pull-data returns ok JSON when idle."""
     monkeypatch.setattr(website, "run_pull_pipeline", lambda: None)

@@ -8,6 +8,7 @@ names using a tiny local LLM, with deterministic fallbacks when needed.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import sys
@@ -19,6 +20,7 @@ from huggingface_hub import hf_hub_download
 from llama_cpp import Llama  # CPU-only by default if N_GPU_LAYERS=0
 
 app = Flask(__name__)
+LOGGER = logging.getLogger(__name__)
 
 # ---------------- Model config ----------------
 MODEL_REPO = os.getenv(
@@ -33,6 +35,8 @@ MODEL_FILE = os.getenv(
 N_THREADS = int(os.getenv("N_THREADS", str(os.cpu_count() or 2)))
 N_CTX = int(os.getenv("N_CTX", "2048"))
 N_GPU_LAYERS = int(os.getenv("N_GPU_LAYERS", "0"))  # 0 → CPU-only
+STANDARDIZE_MAX_ROWS = int(os.getenv("STANDARDIZE_MAX_ROWS", "100"))
+STANDARDIZE_MAX_PROGRAM_CHARS = int(os.getenv("STANDARDIZE_MAX_PROGRAM_CHARS", "512"))
 
 CANON_UNIS_PATH = os.getenv("CANON_UNIS_PATH", "canon_universities.txt")
 CANON_PROGS_PATH = os.getenv("CANON_PROGS_PATH", "canon_programs.txt")
@@ -314,16 +318,40 @@ def standardize() -> Any:
     """
     payload = request.get_json(force=True, silent=True)
     rows = _normalize_input(payload)
+    limited_rows = rows[:STANDARDIZE_MAX_ROWS]
 
     out: List[Dict[str, Any]] = []
-    for row in rows:
-        program_text = (row or {}).get("program") or ""
-        result = _call_llm(program_text)
-        row["llm-generated-program"] = result["standardized_program"]
-        row["llm-generated-university"] = result["standardized_university"]
-        out.append(row)
+    invalid_rows_skipped = 0
+    for row in limited_rows:
+        if not isinstance(row, dict):
+            invalid_rows_skipped += 1
+            continue
 
-    return jsonify({"rows": out})
+        row_out = dict(row)
+        program_text = str(row_out.get("program") or "")
+        if len(program_text) > STANDARDIZE_MAX_PROGRAM_CHARS:
+            program_text = program_text[:STANDARDIZE_MAX_PROGRAM_CHARS]
+
+        try:
+            result = _call_llm(program_text)
+        except Exception:
+            LOGGER.exception("Standardization failed for one row")
+            fallback_program, fallback_university = _split_fallback(program_text)
+            result = {
+                "standardized_program": _post_normalize_program(fallback_program),
+                "standardized_university": _post_normalize_university(fallback_university),
+            }
+
+        row_out["llm-generated-program"] = result["standardized_program"]
+        row_out["llm-generated-university"] = result["standardized_university"]
+        out.append(row_out)
+
+    response: Dict[str, Any] = {"rows": out}
+    if len(rows) > len(limited_rows):
+        response["truncated"] = True
+    if invalid_rows_skipped:
+        response["invalid_rows_skipped"] = invalid_rows_skipped
+    return jsonify(response)
 
 
 def _cli_process_file(
