@@ -9,9 +9,9 @@ degree program + university names. It appends two new fields to each row:
 
 1. Create a new **Python** Repl.
 2. Upload these files (or import the zip).
-3. Install deps:
+3. Install deps (recommended in a dedicated venv):
    ```bash
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 4. Run the API server:
    ```bash

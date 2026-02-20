@@ -13,6 +13,8 @@ import os
 import re
 import sys
 import difflib
+from contextlib import nullcontext
+from functools import lru_cache
 from typing import Any, Dict, List, Tuple
 
 from flask import Flask, jsonify, request
@@ -79,6 +81,23 @@ COMMON_PROG_FIXES: Dict[str, str] = {
     "Info Studies": "Information Studies",
 }
 
+LLM_OUTPUT_PARSE_ERRORS = (
+    json.JSONDecodeError,
+    TypeError,
+    ValueError,
+    AttributeError,
+)
+STANDARDIZE_ROW_ERRORS = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    AttributeError,
+    KeyError,
+    IndexError,
+    json.JSONDecodeError,
+)
+
 # ---------------- Few-shot prompt ----------------
 SYSTEM_PROMPT = (
     "You are a data cleaning assistant. Standardize degree program and university "
@@ -122,18 +141,12 @@ FEW_SHOTS: List[Tuple[Dict[str, str], Dict[str, str]]] = [
     ),
 ]
 
-_LLM: Llama | None = None
-
-
+@lru_cache(maxsize=1)
 def _load_llm() -> Llama:
     """Download (or reuse) the GGUF file and initialize llama.cpp.
 
     :returns: A cached :class:`llama_cpp.Llama` instance.
     """
-    global _LLM
-    if _LLM is not None:
-        return _LLM
-
     model_path = hf_hub_download(
         repo_id=MODEL_REPO,
         filename=MODEL_FILE,
@@ -142,14 +155,13 @@ def _load_llm() -> Llama:
         force_filename=MODEL_FILE,
     )
 
-    _LLM = Llama(
+    return Llama(
         model_path=model_path,
         n_ctx=N_CTX,
         n_threads=N_THREADS,
         n_gpu_layers=N_GPU_LAYERS,
         verbose=False,
     )
-    return _LLM
 
 
 def _split_fallback(text: str) -> Tuple[str, str]:
@@ -277,7 +289,7 @@ def _call_llm(program_text: str) -> Dict[str, str]:
         obj = json.loads(match.group(0) if match else text)
         std_prog = str(obj.get("standardized_program", "")).strip()
         std_uni = str(obj.get("standardized_university", "")).strip()
-    except Exception:
+    except LLM_OUTPUT_PARSE_ERRORS:
         std_prog, std_uni = _split_fallback(program_text)
 
     std_prog = _post_normalize_program(std_prog)
@@ -334,7 +346,7 @@ def standardize() -> Any:
 
         try:
             result = _call_llm(program_text)
-        except Exception:
+        except STANDARDIZE_ROW_ERRORS:
             LOGGER.exception("Standardization failed for one row")
             fallback_program, fallback_university = _split_fallback(program_text)
             result = {
@@ -370,15 +382,13 @@ def _cli_process_file(
     with open(in_path, "r", encoding="utf-8") as f:
         rows = _normalize_input(json.load(f))
 
-    sink = sys.stdout if to_stdout else None
+    sink_context = nullcontext(sys.stdout)
     if not to_stdout:
         out_path = out_path or (in_path + ".jsonl")
         mode = "a" if append else "w"
-        sink = open(out_path, mode, encoding="utf-8")
+        sink_context = open(out_path, mode, encoding="utf-8")
 
-    assert sink is not None  # for type-checkers
-
-    try:
+    with sink_context as sink:
         for row in rows:
             program_text = (row or {}).get("program") or ""
             result = _call_llm(program_text)
@@ -388,9 +398,6 @@ def _cli_process_file(
             json.dump(row, sink, ensure_ascii=False)
             sink.write("\n")
             sink.flush()
-    finally:
-        if sink is not sys.stdout:
-            sink.close()
 
 
 if __name__ == "__main__":

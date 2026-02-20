@@ -1,4 +1,4 @@
-"""Tests for the query_table module's top-level queries."""
+"""Tests for the query_table module metric queries."""
 
 import importlib
 import sys
@@ -14,8 +14,8 @@ if str(ROOT) not in sys.path:
 pytestmark = pytest.mark.db
 
 
-def test_query_table_top_level_with_fake_db(monkeypatch):
-    """Top-level import executes all expected queries against a fake DB."""
+def test_query_table_fetch_metrics_with_fake_db(monkeypatch):
+    """fetch_metrics executes all expected queries against a fake DB."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/grad_cafe")
     class State:
         def __init__(self):
@@ -77,10 +77,29 @@ def test_query_table_top_level_with_fake_db(monkeypatch):
 
     if "src.query_table" in sys.modules:
         del sys.modules["src.query_table"]
-    import src.query_table  # noqa: F401
+    query_table = importlib.import_module("src.query_table")
+    metrics = query_table.fetch_metrics()
+
+    expected_keys = {
+        "fall_2026_count",
+        "intl_pct",
+        "avg_gpa",
+        "avg_gre",
+        "avg_gre_v",
+        "avg_gre_aw",
+        "avg_gpa_american_fall_2026",
+        "acceptance_pct_fall_2026",
+        "avg_gpa_accepted_fall_2026",
+        "jhu_ms_cs_count",
+        "cs_phd_accept_2026",
+        "cs_phd_accept_2026_llm",
+        "unc_masters_program_rows",
+        "unc_phd_program_rows",
+    }
 
     assert state.execute_count == 11
     assert state.fetchone_calls == 9
     assert state.fetchall_calls == 2
     assert state.fetchone_values == []
     assert state.fetchall_values == []
+    assert set(metrics.keys()) == expected_keys

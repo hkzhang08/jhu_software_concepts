@@ -2,7 +2,7 @@
 Load cleaned GradCafe JSONL data into PostgreSQL.
 
 This module is designed to be executed as a script and will:
-- Ensure the applicants table exists.
+- Verify the applicants table exists.
 - Load rows from the master JSONL file and the new-rows JSONL file.
 - Deduplicate by URL before insert.
 """
@@ -11,15 +11,12 @@ This module is designed to be executed as a script and will:
 # Load collected data into a PostgreSQL database using psycopg
 import json
 import os
-import re
-from datetime import datetime
 import psycopg
-from psycopg import sql
 
 try:
-    from .db_config import get_db_dsn
+    from . import db_builders
 except ImportError:  # pragma: no cover - script execution path
-    from db_config import get_db_dsn
+    import db_builders
 
 
 # Path to LLM cleaned JSON data (new rows only)
@@ -28,165 +25,32 @@ DATA_PATH = os.path.join(BASE_DIR, "llm_new_applicant.json")
 ORIGINAL_PATH = os.path.join(BASE_DIR, "llm_extend_applicant_data.json")
 
 # Data source name for postgreSQL
-DSN = get_db_dsn()
-APPLICANTS_TABLE = sql.Identifier("applicants")
-MIN_QUERY_LIMIT = 1
-MAX_QUERY_LIMIT = 100
+DSN = db_builders.get_db_dsn()
+fnum = db_builders.fnum
+fdate = db_builders.fdate
+fdegree = db_builders.fdegree
+ftext = db_builders.ftext
+QUERY_LIMIT = db_builders.clamp_limit(
+    os.environ.get("QUERY_LIMIT", db_builders.MAX_QUERY_LIMIT)
+)
 
 
-def clamp_limit(raw_limit):
+def require_applicants_table(db_cursor):
     """
-    Clamp any requested limit to the safe query window (1..100).
+    Verify that the applicants table exists without requiring DDL privileges.
 
-    :param raw_limit: Raw value from configuration/input.
-    :returns: Integer limit constrained to [MIN_QUERY_LIMIT, MAX_QUERY_LIMIT].
-    """
-
-    try:
-        parsed_limit = int(raw_limit)
-    except (TypeError, ValueError):
-        return MAX_QUERY_LIMIT
-    return max(MIN_QUERY_LIMIT, min(parsed_limit, MAX_QUERY_LIMIT))
-
-
-QUERY_LIMIT = clamp_limit(os.environ.get("QUERY_LIMIT", MAX_QUERY_LIMIT))
-
-
-def applicants_sql(query_template: str):
-    """
-    Compose SQL with a safely quoted applicants table identifier.
-
-    :param query_template: SQL template containing ``{table}``.
-    :returns: Composed SQL object.
+    :param db_cursor: Database cursor.
+    :raises RuntimeError: If ``public.applicants`` is missing.
     """
 
-    return sql.SQL(query_template).format(table=APPLICANTS_TABLE)
-
-
-def fetch_existing_urls(cur, batch_limit: int):
-    """
-    Read existing URLs in bounded pages so each query has an inherent LIMIT.
-
-    :param cur: Database cursor.
-    :param batch_limit: Page size for URL fetches.
-    :returns: Set of non-null existing URL strings.
-    """
-
-    stmt = applicants_sql(
-        """
-        SELECT url
-        FROM {table}
-        WHERE url IS NOT NULL
-        ORDER BY p_id
-        LIMIT %s OFFSET %s;
-        """
+    db_builders.ensure_table_exists(
+        db_cursor,
+        db_builders.APPLICANTS_REGCLASS,
+        (
+            "Required table public.applicants is missing. "
+            "Create it with a schema owner before running load_data.py."
+        ),
     )
-    existing_urls = set()
-    offset = 0
-
-    while True:
-        params = (batch_limit, offset)
-        cur.execute(stmt, params)
-        batch = cur.fetchall()
-        if not batch:
-            break
-
-        existing_urls.update(url for (url,) in batch if url is not None)
-        if len(batch) < batch_limit:
-            break
-
-        offset += batch_limit
-
-    return existing_urls
-
-
-def fnum(value):
-    """
-    Convert numeric-like values to float.
-
-    :param value: Any numeric-like value (str/int/float).
-    :returns: Float if parsable, otherwise None.
-    """
-
-    # Set to none if already missing
-    if value is None:
-        return None
-
-    # If numeric, covert to float
-    if isinstance(value, (int, float)):
-        return float(value)
-
-    # Clean the number within the string if needed
-    match = re.search(r"[-+]?\d*\.?\d+", str(value))
-    return float(match.group(0)) if match else None
-
-
-def fdate(value):
-    """
-    Convert date strings to ``datetime.date``.
-
-    Supports multiple formats used in the dataset.
-
-    :param value: Date string (e.g., "February 01, 2026").
-    :returns: ``datetime.date`` or None if parsing fails.
-    """
-
-    # If missing, then keep as none
-    if not value:
-        return None
-
-    cleaned = str(value).strip()
-
-    # Try different date formats as needed
-    for fmt in ("%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(cleaned, fmt).date()
-        except ValueError:
-            continue
-
-    # If not date, then return none
-    return None
-
-
-def fdegree(value):
-    """
-    Normalize degree labels to numeric categories.
-
-    :param value: Degree label (e.g., "PhD", "Masters").
-    :returns: 2.0 for PhD/doctorate, 1.0 for masters, else None.
-    """
-
-    # If not value, then return none
-    if not value:
-        return None
-    v = str(value).strip().lower()
-
-    # Update phd/doctorate to 2.0
-    if "phd" in v or "doctor" in v:
-        return 2.0
-
-    # Update masters to 1.0
-    if "master" in v or v in {"ms", "ma", "msc", "mba"}:
-        return 1.0
-
-    # Return none if not matched above
-    return None
-
-
-def ftext(value):
-    """
-    Normalize text values to strings without NULL bytes.
-
-    :param value: Input value.
-    :returns: Cleaned string or None.
-    """
-
-    # Return none if missing
-    if value is None:
-        return None
-
-    # Return string and remove null bytes
-    return str(value).replace("\x00", "")
 
 
 # Create / connect to the PostgreSQL database
@@ -195,36 +59,15 @@ with psycopg.connect(DSN) as conn:
     # Create cursor to run SQL
     with conn.cursor() as cur:
 
-        # Create table for applicant_data and p_id if it doesnt already exist
-        stmt = applicants_sql(
-            """
-            CREATE TABLE IF NOT EXISTS {table} (
-                p_id SERIAL PRIMARY KEY,
-                program TEXT,
-                comments TEXT,
-                date_added DATE,
-                url TEXT,
-                status TEXT,
-                term TEXT,
-                us_or_international TEXT,
-                gpa DOUBLE PRECISION,
-                gre DOUBLE PRECISION,
-                gre_v DOUBLE PRECISION,
-                gre_aw DOUBLE PRECISION,
-                degree DOUBLE PRECISION,
-                llm_generated_program TEXT,
-                llm_generated_university TEXT
-            );
-            """
-        )
-        cur.execute(stmt)
+        # Require existing table to keep runtime DB access least-privilege.
+        require_applicants_table(cur)
 
         # Initialize rows
         rows = []
 
         # Pull URLs already in the database in bounded pages
-        existing_urls = fetch_existing_urls(cur, QUERY_LIMIT)
-        seen_urls = set(existing_urls)
+        known_url_set = db_builders.fetch_existing_urls(cur, QUERY_LIMIT)
+        seen_urls = set(known_url_set)
 
         def load_from_file(path):
             """
@@ -242,35 +85,16 @@ with psycopg.connect(DSN) as conn:
                         continue
                     # Load JSON into dictionary
                     row = json.loads(line)
-                    url = ftext(row.get("url"))
-                    if url and url in seen_urls:
+                    url = db_builders.register_unique_url(row, seen_urls)
+                    if url is None:
                         continue
-                    if url:
-                        seen_urls.add(url)
 
                     # Build table / append cleaned values to match assignment details
                     rows.append(
-                        (
-                            ftext(row.get("program")),
-                            ftext(row.get("comments")),
-                            fdate(row.get("date_added")),
-                            url,
-                            ftext(row.get("applicant_status")),
-                            ftext(row.get("semester_year_start")),
-                            ftext(row.get("citizenship")),
-                            fnum(row.get("gpa")),
-                            fnum(row.get("gre")),
-                            fnum(row.get("gre_v")),
-                            fnum(row.get("gre_aw")),
-                            fdegree(row.get("masters_or_phd")),
-                            ftext(
-                                row.get("llm-generated-program")
-                                or row.get("llm_generated_program")
-                            ),
-                            ftext(
-                                row.get("llm-generated-university")
-                                or row.get("llm_generated_university")
-                            ),
+                        db_builders.build_applicant_insert_row(
+                            row,
+                            url=url,
+                            include_llm=True,
                         )
                     )
 
@@ -280,7 +104,7 @@ with psycopg.connect(DSN) as conn:
 
         # Insert cleaned rows into the database
         if rows:
-            stmt = applicants_sql(
+            insert_stmt = db_builders.applicants_sql(
                 """
                 INSERT INTO {table} (
                     program,
@@ -301,7 +125,7 @@ with psycopg.connect(DSN) as conn:
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """
             )
-            cur.executemany(stmt, rows)
+            cur.executemany(insert_stmt, rows)
 
     # Commit and save changes
     conn.commit()
