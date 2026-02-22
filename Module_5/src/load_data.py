@@ -21,8 +21,14 @@ except ImportError:  # pragma: no cover - script execution path
 
 # Path to LLM cleaned JSON data (new rows only)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "llm_new_applicant.json")
-ORIGINAL_PATH = os.path.join(BASE_DIR, "llm_extend_applicant_data.json")
+DATA_PATH = os.environ.get(
+    "LLM_NEW_APPLICANT_PATH",
+    os.path.join(BASE_DIR, "llm_new_applicant.json"),
+)
+ORIGINAL_PATH = os.environ.get(
+    "LLM_EXTEND_APPLICANT_PATH",
+    os.path.join(BASE_DIR, "llm_extend_applicant_data.json"),
+)
 
 # Data source name for postgreSQL
 DSN = db_builders.get_db_dsn()

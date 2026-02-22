@@ -25,13 +25,27 @@ class FakeCursor:
         self._result = []
 
     def execute(self, query, params=None):
-        if "SELECT url FROM applicants" in query:
-            self._result = [(row[3],) for row in self.table if row[3] is not None]
-        else:
-            self._result = []
+        # ensure_table_exists(...): params = (regclass_name, 1)
+        if params and len(params) == 2 and isinstance(params[0], str):
+            self._result = [(params[0],)]
+            return
+
+        # fetch_existing_urls(...): params = (limit, offset)
+        if params and len(params) == 2 and all(isinstance(v, int) for v in params):
+            limit, offset = params
+            urls = [(row[3],) for row in self.table if row[3] is not None]
+            self._result = urls[offset: offset + limit]
+            return
+
+        self._result = []
 
     def executemany(self, query, rows):
         self.table.extend(rows)
+
+    def fetchone(self):
+        if not self._result:
+            return None
+        return self._result[0]
 
     def fetchall(self):
         return list(self._result)

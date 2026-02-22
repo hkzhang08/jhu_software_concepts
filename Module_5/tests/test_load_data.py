@@ -20,6 +20,14 @@ pytestmark = pytest.mark.db
 def _import_load_data(monkeypatch, fake_conn):
     """Import/reload load_data with a fake database connection."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/grad_cafe")
+    monkeypatch.setenv(
+        "LLM_NEW_APPLICANT_PATH",
+        str(Path.cwd() / "llm_new_applicant.json"),
+    )
+    monkeypatch.setenv(
+        "LLM_EXTEND_APPLICANT_PATH",
+        str(Path.cwd() / "llm_extend_applicant_data.json"),
+    )
     monkeypatch.setattr(psycopg, "connect", lambda _dsn: fake_conn)
     if "src.load_data" in sys.modules:
         del sys.modules["src.load_data"]
@@ -33,13 +41,25 @@ def test_load_data_top_level_no_files(monkeypatch, tmp_path):
         def __init__(self):
             self.executemany_called = False
             self._result = []
+            self._existing_urls = []
 
         def execute(self, _query, _params=None):
-            if "SELECT url FROM applicants" in _query:
-                self._result = []
+            if _params and len(_params) == 2 and isinstance(_params[0], str):
+                self._result = [(_params[0],)]
+                return
+            if _params and len(_params) == 2 and all(isinstance(v, int) for v in _params):
+                limit, offset = _params
+                self._result = self._existing_urls[offset: offset + limit]
+                return
+            self._result = []
 
         def executemany(self, _query, _rows):
             self.executemany_called = True
+
+        def fetchone(self):
+            if not self._result:
+                return None
+            return self._result[0]
 
         def fetchall(self):
             return list(self._result)
@@ -86,14 +106,26 @@ def test_load_data_happy_path_jsonl_inserts(monkeypatch, tmp_path):
             self.executemany_called = False
             self.inserted_rows = []
             self._result = []
+            self._existing_urls = []
 
         def execute(self, _query, _params=None):
-            if "SELECT url FROM applicants" in _query:
-                self._result = []
+            if _params and len(_params) == 2 and isinstance(_params[0], str):
+                self._result = [(_params[0],)]
+                return
+            if _params and len(_params) == 2 and all(isinstance(v, int) for v in _params):
+                limit, offset = _params
+                self._result = self._existing_urls[offset: offset + limit]
+                return
+            self._result = []
 
         def executemany(self, _query, rows):
             self.executemany_called = True
             self.inserted_rows = list(rows)
+
+        def fetchone(self):
+            if not self._result:
+                return None
+            return self._result[0]
 
         def fetchall(self):
             return list(self._result)
@@ -171,14 +203,27 @@ def test_load_data_skips_duplicate_urls(monkeypatch, tmp_path):
         def __init__(self):
             self.executemany_called = False
             self.inserted_rows = []
-            self._result = [("https://example.com/result/1",)]
+            self._result = []
+            self._existing_urls = [("https://example.com/result/1",)]
 
         def execute(self, _query, _params=None):
-            return None
+            if _params and len(_params) == 2 and isinstance(_params[0], str):
+                self._result = [(_params[0],)]
+                return
+            if _params and len(_params) == 2 and all(isinstance(v, int) for v in _params):
+                limit, offset = _params
+                self._result = self._existing_urls[offset: offset + limit]
+                return
+            self._result = []
 
         def executemany(self, _query, rows):
             self.executemany_called = True
             self.inserted_rows = list(rows)
+
+        def fetchone(self):
+            if not self._result:
+                return None
+            return self._result[0]
 
         def fetchall(self):
             return list(self._result)
@@ -232,14 +277,26 @@ def test_load_data_llm_generated_fallback(monkeypatch, tmp_path):
             self.executemany_called = False
             self.inserted_rows = []
             self._result = []
+            self._existing_urls = []
 
         def execute(self, _query, _params=None):
-            if "SELECT url FROM applicants" in _query:
-                self._result = []
+            if _params and len(_params) == 2 and isinstance(_params[0], str):
+                self._result = [(_params[0],)]
+                return
+            if _params and len(_params) == 2 and all(isinstance(v, int) for v in _params):
+                limit, offset = _params
+                self._result = self._existing_urls[offset: offset + limit]
+                return
+            self._result = []
 
         def executemany(self, _query, rows):
             self.executemany_called = True
             self.inserted_rows = list(rows)
+
+        def fetchone(self):
+            if not self._result:
+                return None
+            return self._result[0]
 
         def fetchall(self):
             return list(self._result)
@@ -304,13 +361,19 @@ def test_load_data_helper_functions():
     """Helper functions handle edge cases for numbers, dates, degrees, and text."""
     class FakeCursor:
         def execute(self, _query, _params=None):
+            self._result = [(_params[0],)] if _params and isinstance(_params[0], str) else []
             return None
 
         def executemany(self, _query, _rows):
             return None
 
+        def fetchone(self):
+            if not getattr(self, "_result", []):
+                return None
+            return self._result[0]
+
         def fetchall(self):
-            return []
+            return list(getattr(self, "_result", []))
 
         def __enter__(self):
             return self

@@ -5,19 +5,75 @@ This module uses robots.txt checks, page iteration, and BeautifulSoup
 to extract structured applicant records from the public survey pages.
 """
 
-
-
+import ssl
 from urllib import parse, robotparser, error, request
 import re
 import json
 import time
 from bs4 import BeautifulSoup
 
+try:
+    import certifi
+except ImportError:  # pragma: no cover - optional dependency
+    certifi = None
+
 
 URL = "https://www.thegradcafe.com/"
 USER_AGENT = "Mozilla/5.0 (compatible; zhang/1.0)"
 AGENT = "zhang"
 OUTPUT_FILE = "applicant_data.json"
+
+
+def _build_ssl_context():
+    """
+    Build a TLS context for HTTPS fetches.
+
+    Prefer certifi's CA bundle when available so macOS/Homebrew Python
+    environments without system trust integration can still verify certs.
+    """
+
+    cafile = certifi.where() if certifi is not None else None
+    if cafile:
+        return ssl.create_default_context(cafile=cafile)
+    return ssl.create_default_context()
+
+
+def _urlopen_with_tls(req):
+    """
+    Open a URL request using the module's TLS context.
+
+    Falls back to the one-argument urlopen signature for test doubles that
+    do not accept the ``context`` keyword.
+    """
+
+    context = _build_ssl_context()
+    try:
+        return request.urlopen(req, context=context)
+    except TypeError:
+        return request.urlopen(req)
+
+
+def _is_cert_verification_error(err):
+    """
+    Return True when a URLError wraps a certificate verification failure.
+    """
+
+    reason = getattr(err, "reason", None)
+    if isinstance(reason, ssl.SSLCertVerificationError):
+        return True
+    if isinstance(reason, ssl.SSLError):
+        return "CERTIFICATE_VERIFY_FAILED" in str(reason)
+    return False
+
+
+def _fetch_text(url):
+    """
+    Fetch UTF-8 text content from a URL using module TLS settings.
+    """
+
+    req = request.Request(url, headers={"User-Agent": USER_AGENT})
+    with _urlopen_with_tls(req) as response:
+        return response.read().decode("utf-8", errors="replace")
 
 
 def url_check():
@@ -29,10 +85,19 @@ def url_check():
 
     # Join robots.txt URL and run it through the parser
     parser = robotparser.RobotFileParser()
-    parser.set_url(parse.urljoin(URL, 'robots.txt'))
+    robots_url = parse.urljoin(URL, "robots.txt")
+    parser.set_url(robots_url)
 
-    # Reading the parser
-    parser.read()
+    # Read robots.txt with default parser behavior first, then retry once
+    # with an explicit CA bundle on certificate verification failures.
+    try:
+        parser.read()
+    except error.URLError as err:
+        if not _is_cert_verification_error(err):
+            raise
+        print("Fetch results: robots.txt TLS verify failed; retrying with CA bundle")
+        robots_text = _fetch_text(robots_url)
+        parser.parse(robots_text.splitlines())
 
     # Print that robots.txt was checked
     print("Fetch results: robots.txt checked")
@@ -66,7 +131,7 @@ def check_url (page_url, parser):
             headers={"User-Agent": USER_AGENT})
 
         # Requests and decodes the HTML
-        with request.urlopen(new_header) as response:
+        with _urlopen_with_tls(new_header) as response:
             html = response.read().decode("utf-8")
 
         # Converting HTML into object
@@ -74,7 +139,7 @@ def check_url (page_url, parser):
         return soup
 
     # Print any errors that occurred
-    except error.HTTPError as err:
+    except (error.HTTPError, error.URLError) as err:
         print(f"An error has occurred - {err}")
         return None
 

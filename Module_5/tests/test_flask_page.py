@@ -135,12 +135,44 @@ def test_pull_data_route_returns_ok_json(monkeypatch):
     assert resp.get_json() == {"ok": True}
 
 
-def test_update_analysis_route_returns_ok_json():
-    """POST /update-analysis returns ok JSON when idle."""
+def test_update_analysis_route_redirects_to_index():
+    """POST /update-analysis redirects to / when idle."""
     website.PULL_STATE["status"] = "idle"
     app = website.create_app()
     app.config["TESTING"] = True
     client = app.test_client()
     resp = client.post("/update-analysis")
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")
+
+
+def test_index_shows_pull_status_message():
+    """GET / renders the pull status message when present."""
+    def fake_metrics():
+        return {
+            "fall_2026_count": 0,
+            "intl_pct": 0.0,
+            "avg_gpa": 0.0,
+            "avg_gre": 0.0,
+            "avg_gre_v": 0.0,
+            "avg_gre_aw": 0.0,
+            "avg_gpa_american_fall_2026": 0.0,
+            "acceptance_pct_fall_2026": 0.0,
+            "avg_gpa_accepted_fall_2026": 0.0,
+            "jhu_ms_cs_count": 0,
+            "cs_phd_accept_2026": 0,
+            "cs_phd_accept_2026_llm": 0,
+            "unc_masters_program_rows": [],
+            "unc_phd_program_rows": [],
+        }
+
+    website.PULL_STATE["status"] = "done"
+    website.PULL_STATE["message"] = "Data Pull Complete. Inserted 5 new rows."
+    app = website.create_app(fetch_metrics_fn=fake_metrics)
+    app.config["TESTING"] = True
+    client = app.test_client()
+    resp = client.get("/")
     assert resp.status_code == 200
-    assert resp.get_json() == {"ok": True}
+    body = resp.get_data(as_text=True)
+    assert "data-testid=\"pull-status\"" in body
+    assert "Data Pull Complete. Inserted 5 new rows." in body

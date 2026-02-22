@@ -40,7 +40,7 @@ def _fake_metrics():
 
 
 def test_post_pull_data_triggers_loader_with_scraped_rows(monkeypatch, tmp_path):
-    """POST /pull-data runs the pipeline and returns ok JSON."""
+    """POST /pull-data runs the pipeline and returns ok JSON by default."""
     fake_rows = [{"program": "Test Program", "url": "https://example.com/result/1"}]
     calls = []
 
@@ -76,16 +76,29 @@ def test_post_pull_data_triggers_loader_with_scraped_rows(monkeypatch, tmp_path)
     assert calls == ["scrape", "clean", "load"]
 
 
-def test_post_update_analysis_returns_200_when_not_busy():
-    """POST /update-analysis returns ok when not busy."""
+def test_post_pull_data_with_explicit_json_accept(monkeypatch):
+    """Explicit JSON Accept header follows the JSON response branch."""
+    monkeypatch.setattr(website, "run_pull_pipeline", lambda: None)
+    website.PULL_STATE["status"] = "idle"
+    app = website.create_app(fetch_metrics_fn=_fake_metrics)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.post("/pull-data", headers={"Accept": "application/json"})
+    assert resp.status_code == 202
+    assert resp.get_json() == {"ok": True}
+
+
+def test_post_update_analysis_redirects_when_not_busy():
+    """POST /update-analysis redirects to / when not busy."""
     website.PULL_STATE["status"] = "idle"
     app = website.create_app(fetch_metrics_fn=_fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
 
     resp = client.post("/update-analysis")
-    assert resp.status_code == 200
-    assert resp.get_json() == {"ok": True}
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")
 
 
 def test_run_pull_pipeline_sets_default_message(monkeypatch, tmp_path):
@@ -100,7 +113,7 @@ def test_run_pull_pipeline_sets_default_message(monkeypatch, tmp_path):
 
     website.run_pull_pipeline()
     assert website.PULL_STATE["status"] == "done"
-    assert website.PULL_STATE["message"] == "Pull complete. Database updated."
+    assert website.PULL_STATE["message"] == "Data Pull Complete. Database updated."
 
 
 def test_run_pull_pipeline_error_sets_status(monkeypatch, tmp_path):
@@ -174,3 +187,51 @@ def test_busy_gating_pull_data_returns_409(monkeypatch):
     resp = client.post("/pull-data")
     assert resp.status_code == 409
     assert resp.get_json() == {"busy": True}
+
+
+def test_busy_gating_pull_data_redirects_for_html(monkeypatch):
+    """Busy state redirects browser form posts and updates pull message."""
+    def should_not_run():
+        raise AssertionError("run_pull_pipeline should not be called while busy")
+
+    monkeypatch.setattr(website, "run_pull_pipeline", should_not_run)
+    website.PULL_STATE["status"] = "running"
+    website.PULL_STATE["message"] = ""
+    app = website.create_app(fetch_metrics_fn=_fake_metrics)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.post("/pull-data", headers={"Accept": "text/html"})
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")
+    assert website.PULL_STATE["message"] == "Pull in progress..."
+
+
+def test_pull_data_failure_redirects_for_html():
+    """Failed pipeline redirects for HTML form callers."""
+    def fake_run_pull_pipeline():
+        website.PULL_STATE["status"] = "error"
+        website.PULL_STATE["message"] = "Pull failed: boom"
+        return False
+
+    website.PULL_STATE["status"] = "idle"
+    app = website.create_app(run_pull_pipeline_fn=fake_run_pull_pipeline)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.post("/pull-data", headers={"Accept": "text/html"})
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")
+
+
+def test_pull_data_redirects_for_html_form_posts(monkeypatch):
+    """Browser-style HTML form submits are redirected back to index."""
+    monkeypatch.setattr(website, "run_pull_pipeline", lambda: None)
+    website.PULL_STATE["status"] = "idle"
+    app = website.create_app(fetch_metrics_fn=_fake_metrics)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.post("/pull-data", headers={"Accept": "text/html"})
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")

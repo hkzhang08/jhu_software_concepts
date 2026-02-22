@@ -16,7 +16,7 @@ import subprocess
 import sys
 import psycopg
 from psycopg import sql
-from flask import Flask, current_app, jsonify, render_template
+from flask import Flask, current_app, jsonify, redirect, render_template, request, url_for
 
 try:
     from . import db_builders
@@ -125,6 +125,23 @@ ANALYSIS_ERRORS = (
 )
 # Keep cleaner helpers available as part of the module API used by tests.
 CLEANER_EXPORTS = (fnum, fdate, fdegree, ftext)
+
+
+def prefers_json_response() -> bool:
+    """
+    Return True when the caller explicitly prefers JSON over HTML.
+
+    Keep JSON as the default for backwards compatibility with API/test callers
+    that omit ``Accept``. Browser form submissions typically include
+    ``text/html`` and should get redirects back to the page.
+    """
+
+    accept = (request.headers.get("Accept") or "").lower()
+    if "text/html" in accept:
+        return False
+    if "application/json" in accept:
+        return True
+    return True
 
 def fmt_pct(value):
     """
@@ -310,9 +327,9 @@ def run_pull_pipeline():
         # When pulling data is done
         PULL_STATE["status"] = "done"
         if inserted is None:
-            PULL_STATE["message"] = "Pull complete. Database updated."
+            PULL_STATE["message"] = "Data Pull Complete. Database updated."
         else:
-            PULL_STATE["message"] = f"Pull complete. Inserted {inserted} new rows."
+            PULL_STATE["message"] = f"Data Pull Complete. Inserted {inserted} new rows."
         return True
 
     # Store any errors for the website
@@ -341,41 +358,61 @@ def pull_data():
     """
     Trigger the data pull pipeline.
 
-    :returns: JSON response with status code.
+    :returns: Redirect for browser forms, JSON for API callers.
     """
+
+    expects_json = prefers_json_response()
+    response = None
+    status_code = None
 
     # If data is running, do not start a second data pull
     if PULL_STATE["status"] == "running":
-        return jsonify({"busy": True}), 409
+        if expects_json:
+            response = jsonify({"busy": True})
+            status_code = 409
+        else:
+            PULL_STATE["message"] = "Pull in progress..."
+            response = redirect(url_for("index"), code=303)
+    else:
+        # Run the pipeline to pull data and update the database
+        run_fn = current_app.config.get("RUN_PULL_PIPELINE", run_pull_pipeline)
+        try:
+            result = run_fn()
+        except PIPELINE_ERRORS:
+            current_app.logger.exception("Pull request failed before completion")
+            PULL_STATE["status"] = "error"
+            PULL_STATE["message"] = PULL_ERROR_MESSAGE
+            result = False
 
-    # Run the pipeline to pull data and update the database
-    run_fn = current_app.config.get("RUN_PULL_PIPELINE", run_pull_pipeline)
-    try:
-        result = run_fn()
-    except PIPELINE_ERRORS:
-        current_app.logger.exception("Pull request failed before completion")
-        PULL_STATE["status"] = "error"
-        PULL_STATE["message"] = PULL_ERROR_MESSAGE
-        return jsonify({"ok": False, "error": PULL_ERROR_MESSAGE}), 500
+        if result is False or PULL_STATE["status"] == "error":
+            if expects_json:
+                response = jsonify({"ok": False, "error": PULL_ERROR_MESSAGE})
+                status_code = 500
+            else:
+                response = redirect(url_for("index"), code=303)
+        elif expects_json:
+            response = jsonify({"ok": True})
+            status_code = 202
+        else:
+            response = redirect(url_for("index"), code=303)
 
-    if result is False or PULL_STATE["status"] == "error":
-        return jsonify({"ok": False, "error": PULL_ERROR_MESSAGE}), 500
-
-    return jsonify({"ok": True}), 202
+    if status_code is None:
+        return response
+    return response, status_code
 
 
 def update_analysis():
     """
-    Refresh analysis results (no-op when busy).
+    Refresh analysis results by redirecting to the analysis page.
 
-    :returns: JSON response with status code.
+    :returns: Redirect response when idle, busy JSON with 409 when running.
     """
 
     # If data is running, do not update analysis
     if PULL_STATE["status"] == "running":
         return jsonify({"busy": True}), 409
 
-    return jsonify({"ok": True}), 200
+    return redirect(url_for("index"), code=303)
 
 
 def index():

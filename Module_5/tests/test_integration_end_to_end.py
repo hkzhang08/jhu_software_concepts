@@ -111,8 +111,8 @@ def test_end_to_end_pull_update_render_with_fake_scraper():
     assert len(state["db_rows"]) == 2
 
     resp = client.post("/update-analysis")
-    assert resp.status_code == 200
-    assert resp.get_json() == {"ok": True}
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")
 
     resp = client.get("/analysis")
     assert resp.status_code == 200
@@ -122,8 +122,8 @@ def test_end_to_end_pull_update_render_with_fake_scraper():
     assert "Fall 2026 Acceptance percent: 50.00" in body
 
 
-def test_update_analysis_succeeds_when_not_busy():
-    """Update-analysis succeeds when the system is not busy."""
+def test_update_analysis_redirects_when_not_busy():
+    """Update-analysis redirects to / when the system is not busy."""
     def fake_metrics():
         return {
             "fall_2026_count": 0,
@@ -148,8 +148,8 @@ def test_update_analysis_succeeds_when_not_busy():
     client = app.test_client()
 
     resp = client.post("/update-analysis")
-    assert resp.status_code == 200
-    assert resp.get_json() == {"ok": True}
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")
 
 
 def test_analysis_shows_updated_metrics_with_formatted_values():

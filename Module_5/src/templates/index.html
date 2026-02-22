@@ -39,8 +39,8 @@
           </form>
         </div>
       </section>
-      {% if pull_state and pull_state.status == "running" %}
-        <div class="pull-status">Pull in progress - do not press "Update Analysis" button</div>
+      {% if pull_state and pull_state.message %}
+        <div class="pull-status" data-testid="pull-status">{{ pull_state.message }}</div>
       {% endif %}
 
       <section class="analysis">

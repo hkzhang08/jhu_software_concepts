@@ -14,7 +14,6 @@ import re
 import sys
 import difflib
 from contextlib import nullcontext
-from functools import lru_cache
 from typing import Any, Dict, List, Tuple
 
 from flask import Flask, jsonify, request
@@ -141,12 +140,18 @@ FEW_SHOTS: List[Tuple[Dict[str, str], Dict[str, str]]] = [
     ),
 ]
 
-@lru_cache(maxsize=1)
+_LLM: Llama | None = None
+
+
 def _load_llm() -> Llama:
     """Download (or reuse) the GGUF file and initialize llama.cpp.
 
     :returns: A cached :class:`llama_cpp.Llama` instance.
     """
+    global _LLM
+    if _LLM is not None:
+        return _LLM
+
     model_path = hf_hub_download(
         repo_id=MODEL_REPO,
         filename=MODEL_FILE,
@@ -155,13 +160,14 @@ def _load_llm() -> Llama:
         force_filename=MODEL_FILE,
     )
 
-    return Llama(
+    _LLM = Llama(
         model_path=model_path,
         n_ctx=N_CTX,
         n_threads=N_THREADS,
         n_gpu_layers=N_GPU_LAYERS,
         verbose=False,
     )
+    return _LLM
 
 
 def _split_fallback(text: str) -> Tuple[str, str]:

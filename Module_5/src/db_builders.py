@@ -128,15 +128,17 @@ def ensure_table_exists(db_cursor, regclass_name: str, missing_message: str):
     :raises RuntimeError: If the table does not exist.
     """
 
-    stmt = sql.SQL(
-        """
+    stmt = """
         SELECT to_regclass(%s)
         LIMIT %s;
-        """
-    )
+    """
     params = (regclass_name, 1)
     db_cursor.execute(stmt, params)
-    row = db_cursor.fetchone()
+    if hasattr(db_cursor, "fetchone"):
+        row = db_cursor.fetchone()
+    else:
+        rows = db_cursor.fetchall()
+        row = rows[0] if rows else None
     if row is None or row[0] is None:
         raise RuntimeError(missing_message)
 

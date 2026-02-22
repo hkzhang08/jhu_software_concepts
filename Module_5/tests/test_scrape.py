@@ -1,6 +1,7 @@
 """Tests for scraping utilities and page parsing."""
 
 import json
+import ssl
 import sys
 from pathlib import Path
 
@@ -34,6 +35,88 @@ def test_url_check_calls_robotparser(monkeypatch, capsys):
     assert "robots.txt checked" in out
     assert calls["set_url"].endswith("robots.txt")
     assert calls["read"] == 1
+    assert isinstance(parser, FakeParser)
+
+
+def test_build_ssl_context_without_certifi(monkeypatch):
+    """_build_ssl_context falls back to system trust when certifi is unavailable."""
+    sentinel = object()
+
+    def fake_create_default_context(*args, **kwargs):
+        assert args == ()
+        assert kwargs == {}
+        return sentinel
+
+    monkeypatch.setattr(scrape, "certifi", None)
+    monkeypatch.setattr(scrape.ssl, "create_default_context", fake_create_default_context)
+    assert scrape._build_ssl_context() is sentinel
+
+
+def test_is_cert_verification_error_ssl_error_and_non_ssl_reason():
+    """_is_cert_verification_error handles generic SSLError and non-SSL reasons."""
+    ssl_err = scrape.error.URLError(scrape.ssl.SSLError("CERTIFICATE_VERIFY_FAILED"))
+    assert scrape._is_cert_verification_error(ssl_err) is True
+
+    non_ssl_err = scrape.error.URLError("network down")
+    assert scrape._is_cert_verification_error(non_ssl_err) is False
+
+
+def test_url_check_reraises_non_cert_urlerror(monkeypatch):
+    """url_check() re-raises URLError when it is not a cert-verification issue."""
+    class FakeParser:
+        def set_url(self, _url):
+            return None
+
+        def read(self):
+            raise scrape.error.URLError("network down")
+
+    monkeypatch.setattr(scrape.robotparser, "RobotFileParser", lambda: FakeParser())
+    with pytest.raises(scrape.error.URLError):
+        scrape.url_check()
+
+
+def test_url_check_retries_with_ca_bundle_on_cert_error(monkeypatch, capsys):
+    """url_check() retries robots fetch via TLS context on cert failures."""
+    calls = {"read": 0, "parsed": None, "urlopen": 0}
+
+    class FakeParser:
+        def set_url(self, _url):
+            return None
+
+        def read(self):
+            calls["read"] += 1
+            cert_error = ssl.SSLCertVerificationError("CERTIFICATE_VERIFY_FAILED")
+            raise scrape.error.URLError(cert_error)
+
+        def parse(self, lines):
+            calls["parsed"] = list(lines)
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b"User-agent: *\nDisallow:"
+
+    def fake_urlopen(_req, context=None):
+        calls["urlopen"] += 1
+        assert context is not None
+        return FakeResponse()
+
+    monkeypatch.setattr(scrape.robotparser, "RobotFileParser", lambda: FakeParser())
+    monkeypatch.setattr(scrape.request, "urlopen", fake_urlopen)
+
+    parser = scrape.url_check()
+
+    out = capsys.readouterr().out
+    assert "retrying with CA bundle" in out
+    assert "robots.txt checked" in out
+    assert calls["read"] == 1
+    assert calls["urlopen"] == 1
+    assert calls["parsed"] == ["User-agent: *", "Disallow:"]
     assert isinstance(parser, FakeParser)
 
 
@@ -79,6 +162,22 @@ def test_check_url_http_error(monkeypatch, capsys):
 
     def boom(_req):
         raise scrape.error.HTTPError(url=None, code=403, msg="Forbidden", hdrs=None, fp=None)
+
+    monkeypatch.setattr(scrape.request, "urlopen", boom)
+    result = scrape.check_url("https://example.com/page", FakeParser())
+    out = capsys.readouterr().out
+    assert result is None
+    assert "An error has occurred" in out
+
+
+def test_check_url_url_error(monkeypatch, capsys):
+    """check_url() handles URLErrors and returns None."""
+    class FakeParser:
+        def can_fetch(self, _agent, _url):
+            return True
+
+    def boom(_req, context=None):
+        raise scrape.error.URLError("network down")
 
     monkeypatch.setattr(scrape.request, "urlopen", boom)
     result = scrape.check_url("https://example.com/page", FakeParser())
@@ -166,6 +265,12 @@ def test_scrape_data_valid_table_all_branches():
     assert second["masters_or_phd"] is None
     assert second["applicant_status"] == "Rejected"
     assert second["decision_date"] is None
+
+
+def test_parse_decision_empty_and_whitespace():
+    """_parse_decision returns (None, None) for empty and non-matching values."""
+    assert scrape._parse_decision("") == (None, None)
+    assert scrape._parse_decision("   ") == (None, None)
 
 
 def test_create_pages():

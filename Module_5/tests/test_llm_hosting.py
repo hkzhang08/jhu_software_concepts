@@ -238,6 +238,81 @@ def test_standardize_endpoint_accepts_list_payload(monkeypatch):
     assert data["rows"][0]["llm-generated-university"] == "University"
 
 
+def test_standardize_endpoint_reports_invalid_rows_skipped(monkeypatch):
+    """Invalid non-dict rows are skipped and counted in response metadata."""
+    app = import_app()
+
+    monkeypatch.setattr(
+        app,
+        "_call_llm",
+        lambda _text: {
+            "standardized_program": "Program",
+            "standardized_university": "University",
+        },
+    )
+    client = app.app.test_client()
+    resp = client.post(
+        "/standardize",
+        json={"rows": ["bad-row", {"program": "CS, Test U"}]},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["invalid_rows_skipped"] == 1
+    assert len(data["rows"]) == 1
+
+
+def test_standardize_endpoint_sets_truncated_flag(monkeypatch):
+    """Response includes truncated metadata when rows exceed configured limit."""
+    app = import_app()
+    monkeypatch.setattr(app, "STANDARDIZE_MAX_ROWS", 1)
+    monkeypatch.setattr(
+        app,
+        "_call_llm",
+        lambda _text: {
+            "standardized_program": "Program",
+            "standardized_university": "University",
+        },
+    )
+
+    client = app.app.test_client()
+    resp = client.post(
+        "/standardize",
+        json={"rows": [{"program": "A"}, {"program": "B"}]},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["truncated"] is True
+    assert len(data["rows"]) == 1
+
+
+def test_standardize_endpoint_fallback_on_row_error_and_program_cap(monkeypatch):
+    """Row-level failures fall back to rules and enforce max program length."""
+    app = import_app()
+    monkeypatch.setattr(app, "STANDARDIZE_MAX_PROGRAM_CHARS", 5)
+
+    seen = {}
+
+    def fake_call_llm(program_text):
+        seen["program_text"] = program_text
+        raise ValueError("boom")
+
+    monkeypatch.setattr(app, "_call_llm", fake_call_llm)
+    monkeypatch.setattr(app, "_split_fallback", lambda _text: ("prog", "uni"))
+    monkeypatch.setattr(app, "_post_normalize_program", lambda p: f"P:{p}")
+    monkeypatch.setattr(app, "_post_normalize_university", lambda u: f"U:{u}")
+
+    client = app.app.test_client()
+    resp = client.post(
+        "/standardize",
+        json={"rows": [{"program": "abcdefghijklmnopqrstuvwxyz"}]},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert seen["program_text"] == "abcde"
+    assert data["rows"][0]["llm-generated-program"] == "P:prog"
+    assert data["rows"][0]["llm-generated-university"] == "U:uni"
+
+
 def test_cli_process_file_stdout_and_file(monkeypatch, tmp_path):
     """CLI writes JSONL to stdout and to a file."""
     app = import_app()
