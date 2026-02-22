@@ -11,3 +11,6 @@ Module_2/models/
 .venv/
 Module_2/.venv/
 Module_2/Archive/
+# Local archive folders
+Archive/
+Module_3/Archive/
