@@ -75,6 +75,16 @@ body {
   margin: -6px 0 12px;
 }
 
+.analysis-status {
+  font-size: 12.5px;
+  color: #1b5e20;
+  margin: -6px 0 12px;
+}
+
+.pull-status-hidden {
+  display: none;
+}
+
 .pull-form {
   margin: 0;
   align-self: center;

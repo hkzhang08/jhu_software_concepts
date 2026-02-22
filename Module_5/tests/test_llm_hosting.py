@@ -415,7 +415,7 @@ def test_load_llm_returns_cached_instance(monkeypatch):
     """_load_llm returns cached instance without download."""
     app = import_app()
     sentinel = object()
-    monkeypatch.setattr(app, "_LLM", sentinel)
+    monkeypatch.setitem(app._LLM_CACHE, "instance", sentinel)
     monkeypatch.setattr(app, "hf_hub_download", lambda **_kw: (_ for _ in ()).throw(RuntimeError("should not download")))
     result = app._load_llm()
     assert result is sentinel

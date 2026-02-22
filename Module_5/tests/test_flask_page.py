@@ -46,6 +46,7 @@ def test_routes_registered():
     assert "/" in rules and "GET" in rules["/"]
     assert "/analysis" in rules and "GET" in rules["/analysis"]
     assert "/pull-data" in rules and "POST" in rules["/pull-data"]
+    assert "/pull-status" in rules and "GET" in rules["/pull-status"]
     assert "/update-analysis" in rules and "POST" in rules["/update-analysis"]
 
 
@@ -146,6 +147,21 @@ def test_update_analysis_route_redirects_to_index():
     assert resp.headers["Location"].endswith("/")
 
 
+def test_pull_status_route_returns_current_state():
+    """GET /pull-status returns the in-memory pull status payload."""
+    website.PULL_STATE["status"] = "running"
+    website.PULL_STATE["message"] = website.PULL_RUNNING_MESSAGE
+    app = website.create_app()
+    app.config["TESTING"] = True
+    client = app.test_client()
+    resp = client.get("/pull-status")
+    assert resp.status_code == 200
+    assert resp.get_json() == {
+        "status": "running",
+        "message": website.PULL_RUNNING_MESSAGE,
+    }
+
+
 def test_index_shows_pull_status_message():
     """GET / renders the pull status message when present."""
     def fake_metrics():
@@ -176,3 +192,41 @@ def test_index_shows_pull_status_message():
     body = resp.get_data(as_text=True)
     assert "data-testid=\"pull-status\"" in body
     assert "Data Pull Complete. Inserted 5 new rows." in body
+
+
+def test_index_shows_and_clears_analysis_refresh_message():
+    """GET / renders the analysis refresh note once, then clears it."""
+    def fake_metrics():
+        return {
+            "fall_2026_count": 0,
+            "intl_pct": 0.0,
+            "avg_gpa": 0.0,
+            "avg_gre": 0.0,
+            "avg_gre_v": 0.0,
+            "avg_gre_aw": 0.0,
+            "avg_gpa_american_fall_2026": 0.0,
+            "acceptance_pct_fall_2026": 0.0,
+            "avg_gpa_accepted_fall_2026": 0.0,
+            "jhu_ms_cs_count": 0,
+            "cs_phd_accept_2026": 0,
+            "cs_phd_accept_2026_llm": 0,
+            "unc_masters_program_rows": [],
+            "unc_phd_program_rows": [],
+        }
+
+    website.ANALYSIS_STATE["message"] = website.ANALYSIS_REFRESHED_MESSAGE
+    app = website.create_app(fetch_metrics_fn=fake_metrics)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "data-testid=\"analysis-status\"" in body
+    assert website.ANALYSIS_REFRESHED_MESSAGE in body
+    assert website.ANALYSIS_STATE["message"] == ""
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "data-testid=\"analysis-status\"" not in body

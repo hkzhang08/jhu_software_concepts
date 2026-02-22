@@ -92,6 +92,7 @@ def test_post_pull_data_with_explicit_json_accept(monkeypatch):
 def test_post_update_analysis_redirects_when_not_busy():
     """POST /update-analysis redirects to / when not busy."""
     website.PULL_STATE["status"] = "idle"
+    website.ANALYSIS_STATE["message"] = "stale"
     app = website.create_app(fetch_metrics_fn=_fake_metrics)
     app.config["TESTING"] = True
     client = app.test_client()
@@ -99,6 +100,21 @@ def test_post_update_analysis_redirects_when_not_busy():
     resp = client.post("/update-analysis")
     assert resp.status_code == 303
     assert resp.headers["Location"].endswith("/")
+    assert website.ANALYSIS_STATE["message"] == ""
+
+
+def test_post_update_analysis_sets_latest_pull_note():
+    """POST /update-analysis stores a one-time note after a completed pull."""
+    website.PULL_STATE["status"] = "done"
+    website.ANALYSIS_STATE["message"] = ""
+    app = website.create_app(fetch_metrics_fn=_fake_metrics)
+    app.config["TESTING"] = True
+    client = app.test_client()
+
+    resp = client.post("/update-analysis")
+    assert resp.status_code == 303
+    assert resp.headers["Location"].endswith("/")
+    assert website.ANALYSIS_STATE["message"] == website.ANALYSIS_REFRESHED_MESSAGE
 
 
 def test_run_pull_pipeline_sets_default_message(monkeypatch, tmp_path):
@@ -125,6 +141,35 @@ def test_run_pull_pipeline_error_sets_status(monkeypatch, tmp_path):
     monkeypatch.setattr(website.subprocess, "run", boom)
 
     website.run_pull_pipeline()
+    assert website.PULL_STATE["status"] == "error"
+    assert website.PULL_STATE["message"] == website.PULL_ERROR_MESSAGE
+
+
+def test_start_background_pull_sets_error_when_worker_raises(monkeypatch):
+    """Background worker exceptions set pull state to error."""
+
+    class InlineThread:
+        """Execute thread target immediately for deterministic tests."""
+
+        def __init__(self, target, daemon=False):
+            self._target = target
+            self.daemon = daemon
+
+        def start(self):
+            self._target()
+
+    def fake_thread(*, target, daemon=False):
+        return InlineThread(target=target, daemon=daemon)
+
+    def boom():
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(website.threading, "Thread", fake_thread)
+    website.PULL_STATE["status"] = "running"
+    website.PULL_STATE["message"] = website.PULL_RUNNING_MESSAGE
+
+    website._start_background_pull(boom)
+
     assert website.PULL_STATE["status"] == "error"
     assert website.PULL_STATE["message"] == website.PULL_ERROR_MESSAGE
 
@@ -204,7 +249,7 @@ def test_busy_gating_pull_data_redirects_for_html(monkeypatch):
     resp = client.post("/pull-data", headers={"Accept": "text/html"})
     assert resp.status_code == 303
     assert resp.headers["Location"].endswith("/")
-    assert website.PULL_STATE["message"] == "Pull in progress..."
+    assert website.PULL_STATE["message"] == website.PULL_RUNNING_MESSAGE
 
 
 def test_pull_data_failure_redirects_for_html():

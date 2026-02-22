@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import psycopg
 from psycopg import sql
 from flask import Flask, current_app, jsonify, redirect, render_template, request, url_for
@@ -103,9 +104,14 @@ QUERY_LIMIT_MAX = db_builders.MAX_QUERY_LIMIT
 QUERY_LIMIT_DEFAULT = db_builders.MAX_QUERY_LIMIT
 QUERY_LIMIT_ENV_VAR = "QUERY_LIMIT"
 PULL_ERROR_MESSAGE = "Pull failed due to an internal error."
+PULL_RUNNING_MESSAGE = (
+    "Data pull is running. Please wait for a follow-up message when complete."
+)
+ANALYSIS_REFRESHED_MESSAGE = "Analysis refreshed with latest data pull results."
 ANALYSIS_ERROR_MESSAGE = "Analysis is temporarily unavailable. Please try again later."
 LOGGER = logging.getLogger(__name__)
 PULL_STATE = {"status": "idle", "message": ""}
+ANALYSIS_STATE = {"message": ""}
 PIPELINE_ERRORS = (
     OSError,
     subprocess.SubprocessError,
@@ -287,7 +293,7 @@ def run_pull_pipeline():
     # Update status of data pull
     try:
         PULL_STATE["status"] = "running"
-        PULL_STATE["message"] = "Pull in progress..."
+        PULL_STATE["message"] = PULL_RUNNING_MESSAGE
 
         # Check that output directory exists
         if os.path.dirname(RAW_FILE):
@@ -340,6 +346,38 @@ def run_pull_pipeline():
         return False
 
 
+def _start_background_pull(run_fn):
+    """
+    Execute a pull pipeline function in a daemon thread.
+
+    :param run_fn: Callable that performs the pull pipeline.
+    """
+
+    def _worker():
+        try:
+            result = run_fn()
+        except PIPELINE_ERRORS:
+            LOGGER.exception("Background pull request failed before completion")
+            PULL_STATE["status"] = "error"
+            PULL_STATE["message"] = PULL_ERROR_MESSAGE
+            return
+
+        if result is False or PULL_STATE["status"] == "error":
+            PULL_STATE["status"] = "error"
+            PULL_STATE["message"] = PULL_ERROR_MESSAGE
+            return
+
+        if PULL_STATE["status"] == "running":
+            PULL_STATE["status"] = "done"
+            if (
+                not PULL_STATE["message"]
+                or PULL_STATE["message"] == PULL_RUNNING_MESSAGE
+            ):
+                PULL_STATE["message"] = "Data Pull Complete. Database updated."
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 def fetch_metrics(query_limit=None) -> dict:
     """
     Query analysis metrics via ``query_table.fetch_metrics``.
@@ -371,29 +409,30 @@ def pull_data():
             response = jsonify({"busy": True})
             status_code = 409
         else:
-            PULL_STATE["message"] = "Pull in progress..."
+            PULL_STATE["message"] = PULL_RUNNING_MESSAGE
             response = redirect(url_for("index"), code=303)
     else:
         # Run the pipeline to pull data and update the database
         run_fn = current_app.config.get("RUN_PULL_PIPELINE", run_pull_pipeline)
-        try:
-            result = run_fn()
-        except PIPELINE_ERRORS:
-            current_app.logger.exception("Pull request failed before completion")
-            PULL_STATE["status"] = "error"
-            PULL_STATE["message"] = PULL_ERROR_MESSAGE
-            result = False
+        if expects_json:
+            try:
+                result = run_fn()
+            except PIPELINE_ERRORS:
+                current_app.logger.exception("Pull request failed before completion")
+                PULL_STATE["status"] = "error"
+                PULL_STATE["message"] = PULL_ERROR_MESSAGE
+                result = False
 
-        if result is False or PULL_STATE["status"] == "error":
-            if expects_json:
+            if result is False or PULL_STATE["status"] == "error":
                 response = jsonify({"ok": False, "error": PULL_ERROR_MESSAGE})
                 status_code = 500
             else:
-                response = redirect(url_for("index"), code=303)
-        elif expects_json:
-            response = jsonify({"ok": True})
-            status_code = 202
+                response = jsonify({"ok": True})
+                status_code = 202
         else:
+            PULL_STATE["status"] = "running"
+            PULL_STATE["message"] = PULL_RUNNING_MESSAGE
+            _start_background_pull(run_fn)
             response = redirect(url_for("index"), code=303)
 
     if status_code is None:
@@ -412,7 +451,22 @@ def update_analysis():
     if PULL_STATE["status"] == "running":
         return jsonify({"busy": True}), 409
 
+    if PULL_STATE["status"] == "done":
+        ANALYSIS_STATE["message"] = ANALYSIS_REFRESHED_MESSAGE
+    else:
+        ANALYSIS_STATE["message"] = ""
+
     return redirect(url_for("index"), code=303)
+
+
+def pull_status():
+    """
+    Return the current pull pipeline state for browser polling.
+
+    :returns: JSON payload with pull ``status`` and ``message``.
+    """
+
+    return jsonify(PULL_STATE), 200
 
 
 def index():
@@ -421,6 +475,9 @@ def index():
 
     :returns: Rendered HTML response.
     """
+
+    analysis_message = ANALYSIS_STATE.get("message", "")
+    ANALYSIS_STATE["message"] = ""
 
     fetch_fn = current_app.config.get("FETCH_METRICS", fetch_metrics)
     try:
@@ -433,7 +490,15 @@ def index():
                 "answer": ANALYSIS_ERROR_MESSAGE,
             }
         ]
-        return render_template("index.html", questions=questions, pull_state=PULL_STATE), 503
+        return (
+            render_template(
+                "index.html",
+                questions=questions,
+                pull_state=PULL_STATE,
+                analysis_message=analysis_message,
+            ),
+            503,
+        )
 
     # Format the SQL questions
     questions = [
@@ -529,7 +594,12 @@ def index():
             ] or ["No rows found."],
         },
     ]
-    return render_template("index.html", questions=questions, pull_state=PULL_STATE)
+    return render_template(
+        "index.html",
+        questions=questions,
+        pull_state=PULL_STATE,
+        analysis_message=analysis_message,
+    )
 
 
 def create_app(*, run_pull_pipeline_fn=None, fetch_metrics_fn=None):
@@ -549,6 +619,7 @@ def create_app(*, run_pull_pipeline_fn=None, fetch_metrics_fn=None):
     if fetch_metrics_fn is not None:
         app.config["FETCH_METRICS"] = fetch_metrics_fn
     app.add_url_rule("/pull-data", "pull_data", pull_data, methods=["POST"])
+    app.add_url_rule("/pull-status", "pull_status", pull_status, methods=["GET"])
     app.add_url_rule("/update-analysis", "update_analysis", update_analysis, methods=["POST"])
     app.add_url_rule("/", "index", index)
     app.add_url_rule("/analysis", "analysis", index)

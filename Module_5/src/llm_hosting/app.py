@@ -140,7 +140,7 @@ FEW_SHOTS: List[Tuple[Dict[str, str], Dict[str, str]]] = [
     ),
 ]
 
-_LLM: Llama | None = None
+_LLM_CACHE: Dict[str, Llama | None] = {"instance": None}
 
 
 def _load_llm() -> Llama:
@@ -148,26 +148,25 @@ def _load_llm() -> Llama:
 
     :returns: A cached :class:`llama_cpp.Llama` instance.
     """
-    global _LLM
-    if _LLM is not None:
-        return _LLM
+    cached_llm = _LLM_CACHE["instance"]
+    if cached_llm is not None:
+        return cached_llm
 
     model_path = hf_hub_download(
         repo_id=MODEL_REPO,
         filename=MODEL_FILE,
         local_dir="models",
-        local_dir_use_symlinks=False,
-        force_filename=MODEL_FILE,
     )
 
-    _LLM = Llama(
+    llm = Llama(
         model_path=model_path,
         n_ctx=N_CTX,
         n_threads=N_THREADS,
         n_gpu_layers=N_GPU_LAYERS,
         verbose=False,
     )
-    return _LLM
+    _LLM_CACHE["instance"] = llm
+    return llm
 
 
 def _split_fallback(text: str) -> Tuple[str, str]:
