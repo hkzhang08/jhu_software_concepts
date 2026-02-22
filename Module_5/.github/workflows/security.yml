@@ -104,6 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SNYK_FAIL_ON_ISSUES: ${{ vars.SNYK_FAIL_ON_ISSUES }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -134,15 +135,13 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Setup Snyk CLI
-        if: ${{ secrets.SNYK_TOKEN != '' }}
+        if: ${{ env.SNYK_TOKEN != '' }}
         uses: snyk/actions/setup@master
 
       - name: Run Snyk test (collect output)
         id: snyk_scan
-        if: ${{ secrets.SNYK_TOKEN != '' }}
+        if: ${{ env.SNYK_TOKEN != '' }}
         working-directory: ${{ steps.project_dir.outputs.dir }}
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set +e
           snyk test --file=requirements.txt --json-file-output=snyk-test.json > snyk-test.txt 2>&1
@@ -152,7 +151,7 @@ jobs:
           exit 0
 
       - name: Snyk skipped (no token configured)
-        if: ${{ secrets.SNYK_TOKEN == '' }}
+        if: ${{ env.SNYK_TOKEN == '' }}
         working-directory: ${{ steps.project_dir.outputs.dir }}
         run: |
           echo "SNYK_TOKEN is not set; skipping snyk test." | tee snyk-test.txt
@@ -167,7 +166,7 @@ jobs:
             ${{ steps.project_dir.outputs.dir }}/snyk-test.json
 
       - name: Enforce Snyk gate (optional)
-        if: ${{ secrets.SNYK_TOKEN != '' }}
+        if: ${{ env.SNYK_TOKEN != '' }}
         run: |
           scan_code="${{ steps.snyk_scan.outputs.exit_code }}"
           fail_on_issues="${SNYK_FAIL_ON_ISSUES:-false}"
