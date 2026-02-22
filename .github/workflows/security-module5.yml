@@ -86,7 +86,7 @@ jobs:
       - name: Generate dependency.svg
         working-directory: ${{ steps.project_dir.outputs.dir }}
         run: |
-          pydeps src/website.py --noshow -T svg -o dependency.svg
+          pydeps src --noshow -T svg -o dependency.svg
 
       - name: Verify dependency.svg
         working-directory: ${{ steps.project_dir.outputs.dir }}
