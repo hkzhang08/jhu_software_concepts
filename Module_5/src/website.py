@@ -354,6 +354,7 @@ def _start_background_pull(run_fn):
     """
 
     def _worker():
+        """Run the pull callable and normalize state transitions on completion."""
         try:
             result = run_fn()
         except PIPELINE_ERRORS:

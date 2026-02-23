@@ -1,3 +1,5 @@
+"""Sphinx configuration for Module_5 project documentation."""
+
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
@@ -37,6 +39,9 @@ try:
 
     class _DummyCursor:
         def execute(self, *_args, **_kwargs):
+            return None
+
+        def executemany(self, *_args, **_kwargs):
             return None
 
         def fetchone(self):
