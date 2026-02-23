@@ -1,0 +1,7 @@
+version: v1.25.0
+ignore:
+  SNYK-PYTHON-DISKCACHE-15268422:
+    - '*':
+        reason: "No upstream fix is available yet for diskcache@5.6.3; accepted temporarily while monitoring for a patched release."
+        expires: 2026-06-30T00:00:00.000Z
+patch: {}

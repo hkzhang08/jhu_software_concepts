@@ -1,9 +1,13 @@
-# Mini LLM Standardizer — Flask (Replit-friendly)
+# Mini Standardizer API — Flask (Replit-friendly)
 
-Tiny Flask API that runs a small local LLM (TinyLlama 1.1B, GGUF) via `llama-cpp-python` to standardize
-degree program + university names. It appends two new fields to each row:
+Tiny Flask API that standardizes degree program + university names and appends
+two new fields to each row:
 - `llm-generated-program`
 - `llm-generated-university`
+
+By default this runs in deterministic fallback mode (no local model runtime
+required). If optional local LLM dependencies are installed separately, the
+same API can still use them.
 
 ## Quickstart (Replit)
 
@@ -17,7 +21,6 @@ degree program + university names. It appends two new fields to each row:
    ```bash
    python app.py --serve
    ```
-   The first run downloads a small GGUF model from Hugging Face (defaults to TinyLlama 1.1B Chat Q4_K_M).
 
 5. Test locally (replace the URL with your Replit web URL when deployed):
    ```bash
@@ -32,17 +35,10 @@ python app.py --file cleaned_applicant_data.json --stdout > full_out.jsonl
 
 ## Config (env vars)
 
-- `MODEL_REPO` (default: `TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF`)
-- `MODEL_FILE` (default: `tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf`)
-- `N_THREADS` (default: CPU count)
-- `N_CTX` (default: 2048)
-- `N_GPU_LAYERS` (default: 0 — CPU only)
-
-If memory is tight on Replit, try:
-```bash
-export MODEL_FILE=tinyllama-1.1b-chat-v1.0.Q3_K_M.gguf
-```
+- `MODEL_REPO`, `MODEL_FILE`, `N_THREADS`, `N_CTX`, `N_GPU_LAYERS`
+  are only used when optional local LLM dependencies are installed.
 
 ## Notes
-- Strict JSON prompting + a rules-first fallback keep tiny models on task.
+- Rules-first fallback keeps output deterministic when no local model runtime
+  is installed.
 - Extend the few-shots and the fallback patterns in `app.py` for higher accuracy on your dataset.

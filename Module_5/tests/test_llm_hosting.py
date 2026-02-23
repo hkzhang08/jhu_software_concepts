@@ -185,6 +185,20 @@ def test_call_llm_json_failure_triggers_fallback(monkeypatch):
     assert result["standardized_university"] == "NU:uni"
 
 
+def test_call_llm_uses_rules_when_llm_unavailable(monkeypatch):
+    """_call_llm uses rules-first fallback when optional deps are unavailable."""
+    app = import_app()
+
+    monkeypatch.setattr(app, "_load_llm", lambda: None)
+    monkeypatch.setattr(app, "_split_fallback", lambda _text: ("prog", "uni"))
+    monkeypatch.setattr(app, "_post_normalize_program", lambda p: f"NP:{p}")
+    monkeypatch.setattr(app, "_post_normalize_university", lambda u: f"NU:{u}")
+
+    result = app._call_llm("input")
+    assert result["standardized_program"] == "NP:prog"
+    assert result["standardized_university"] == "NU:uni"
+
+
 def test_health_endpoint():
     """Health endpoint returns ok JSON."""
     app = import_app()
@@ -316,6 +330,7 @@ def test_standardize_endpoint_fallback_on_row_error_and_program_cap(monkeypatch)
 def test_cli_process_file_stdout_and_file(monkeypatch, tmp_path):
     """CLI writes JSONL to stdout and to a file."""
     app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
 
     def fake_call_llm(_text):
         return {
@@ -332,13 +347,13 @@ def test_cli_process_file_stdout_and_file(monkeypatch, tmp_path):
     # stdout path
     buf = io.StringIO()
     monkeypatch.setattr(sys, "stdout", buf)
-    app._cli_process_file(str(input_path), out_path=None, append=False, to_stdout=True)
+    app._cli_process_file("in.json", out_path=None, append=False, to_stdout=True)
     out_lines = [line for line in buf.getvalue().splitlines() if line.strip()]
     assert len(out_lines) == 1
 
     # file path
     out_path = tmp_path / "out.jsonl"
-    app._cli_process_file(str(input_path), out_path=str(out_path), append=False, to_stdout=False)
+    app._cli_process_file("in.json", out_path="out.jsonl", append=False, to_stdout=False)
     with open(out_path, "r", encoding="utf-8") as handle:
         lines = [line.strip() for line in handle if line.strip()]
     assert len(lines) == 1
@@ -347,6 +362,7 @@ def test_cli_process_file_stdout_and_file(monkeypatch, tmp_path):
 def test_cli_process_file_append(monkeypatch, tmp_path):
     """CLI append mode adds new rows to existing JSONL."""
     app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
 
     def fake_call_llm(_text):
         return {
@@ -361,8 +377,8 @@ def test_cli_process_file_append(monkeypatch, tmp_path):
         json.dump([{"program": "CS, Test U"}], handle)
 
     out_path = tmp_path / "out.jsonl"
-    app._cli_process_file(str(input_path), out_path=str(out_path), append=False, to_stdout=False)
-    app._cli_process_file(str(input_path), out_path=str(out_path), append=True, to_stdout=False)
+    app._cli_process_file("in.json", out_path="out.jsonl", append=False, to_stdout=False)
+    app._cli_process_file("in.json", out_path="out.jsonl", append=True, to_stdout=False)
 
     with open(out_path, "r", encoding="utf-8") as handle:
         lines = [line.strip() for line in handle if line.strip()]
@@ -392,6 +408,7 @@ def test_main_guard_file_path(monkeypatch, tmp_path):
     """__main__ guard processes a file when --file is provided."""
     app = import_app()
     target_path = app.__file__
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
 
     input_path = tmp_path / "in.json"
     out_path = tmp_path / "out.jsonl"
@@ -401,7 +418,7 @@ def test_main_guard_file_path(monkeypatch, tmp_path):
     monkeypatch.setattr(
         sys,
         "argv",
-        ["app.py", "--file", str(input_path), "--out", str(out_path)],
+        ["app.py", "--file", "in.json", "--out", "out.jsonl"],
     )
 
     runpy.run_path(target_path, run_name="__main__")
@@ -409,6 +426,100 @@ def test_main_guard_file_path(monkeypatch, tmp_path):
     with open(out_path, "r", encoding="utf-8") as handle:
         lines = [line.strip() for line in handle if line.strip()]
     assert len(lines) == 1
+
+
+def test_cli_process_file_rejects_path_outside_base(monkeypatch, tmp_path):
+    """CLI path guard rejects input files outside the allowed base directory."""
+    app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
+
+    outside_path = tmp_path.parent / "outside.json"
+    with open(outside_path, "w", encoding="utf-8") as handle:
+        json.dump([{"program": "CS, Test U"}], handle)
+
+    with pytest.raises(ValueError, match="filename without directories"):
+        app._cli_process_file(str(outside_path), out_path=None, append=False, to_stdout=True)
+
+
+def test_cli_process_file_rejects_empty_input_filename(monkeypatch, tmp_path):
+    """CLI requires a non-empty input filename."""
+    app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
+
+    with pytest.raises(ValueError, match="Input filename is required"):
+        app._cli_process_file("", out_path=None, append=False, to_stdout=True)
+
+
+def test_cli_process_file_rejects_invalid_input_filename_chars(monkeypatch, tmp_path):
+    """CLI blocks unsafe characters in input filename."""
+    app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
+
+    with pytest.raises(ValueError, match="Input filename contains invalid characters"):
+        app._cli_process_file("bad*name.json", out_path=None, append=False, to_stdout=True)
+
+
+def test_cli_process_file_rejects_missing_input_file(monkeypatch, tmp_path):
+    """CLI fails fast when the input file does not exist under base dir."""
+    app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
+
+    with pytest.raises(FileNotFoundError, match="Input file not found"):
+        app._cli_process_file("missing.json", out_path=None, append=False, to_stdout=True)
+
+
+def test_cli_process_file_rejects_output_with_directories(monkeypatch, tmp_path):
+    """CLI blocks output paths that include directories."""
+    app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        app,
+        "_call_llm",
+        lambda _text: {
+            "standardized_program": "Program",
+            "standardized_university": "University",
+        },
+    )
+    with open(tmp_path / "in.json", "w", encoding="utf-8") as handle:
+        json.dump([{"program": "CS, Test U"}], handle)
+
+    with pytest.raises(ValueError, match="Output path must be a filename without directories"):
+        app._cli_process_file("in.json", out_path="../out.jsonl", append=False, to_stdout=False)
+
+
+def test_cli_process_file_rejects_invalid_output_filename_chars(monkeypatch, tmp_path):
+    """CLI blocks unsafe characters in output filename."""
+    app = import_app()
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        app,
+        "_call_llm",
+        lambda _text: {
+            "standardized_program": "Program",
+            "standardized_university": "University",
+        },
+    )
+    with open(tmp_path / "in.json", "w", encoding="utf-8") as handle:
+        json.dump([{"program": "CS, Test U"}], handle)
+
+    with pytest.raises(ValueError, match="Output filename contains invalid characters"):
+        app._cli_process_file("in.json", out_path="bad*out.jsonl", append=False, to_stdout=False)
+
+
+def test_main_guard_file_path_reports_cli_error(monkeypatch, tmp_path):
+    """__main__ guard returns parser error for invalid CLI file inputs."""
+    app = import_app()
+    target_path = app.__file__
+    monkeypatch.setenv("LLM_IO_BASE_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["app.py", "--file", "missing.json", "--out", "out.jsonl"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        runpy.run_path(target_path, run_name="__main__")
+    assert exc_info.value.code == 2
 
 
 def test_load_llm_returns_cached_instance(monkeypatch):
@@ -419,3 +530,11 @@ def test_load_llm_returns_cached_instance(monkeypatch):
     monkeypatch.setattr(app, "hf_hub_download", lambda **_kw: (_ for _ in ()).throw(RuntimeError("should not download")))
     result = app._load_llm()
     assert result is sentinel
+
+
+def test_load_llm_returns_none_when_optional_deps_missing(monkeypatch):
+    """_load_llm returns None when llama or huggingface runtime is unavailable."""
+    app = import_app()
+    monkeypatch.setitem(app._LLM_CACHE, "instance", None)
+    monkeypatch.setattr(app, "Llama", None)
+    assert app._load_llm() is None

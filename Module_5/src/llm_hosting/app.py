@@ -17,8 +17,16 @@ from contextlib import nullcontext
 from typing import Any, Dict, List, Tuple
 
 from flask import Flask, jsonify, request
-from huggingface_hub import hf_hub_download
-from llama_cpp import Llama  # CPU-only by default if N_GPU_LAYERS=0
+
+try:
+    from huggingface_hub import hf_hub_download
+except ImportError:  # pragma: no cover - optional dependency path
+    hf_hub_download = None
+
+try:
+    from llama_cpp import Llama  # CPU-only by default if N_GPU_LAYERS=0
+except ImportError:  # pragma: no cover - optional dependency path
+    Llama = None
 
 app = Flask(__name__)
 LOGGER = logging.getLogger(__name__)
@@ -44,6 +52,7 @@ CANON_PROGS_PATH = os.getenv("CANON_PROGS_PATH", "canon_programs.txt")
 
 # Precompiled, non-greedy JSON object matcher to tolerate chatter around JSON
 JSON_OBJ_RE = re.compile(r"\{.*?\}", re.DOTALL)
+SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 # ---------------- Canonical lists + abbrev maps ----------------
 def _read_lines(path: str) -> List[str]:
@@ -140,17 +149,21 @@ FEW_SHOTS: List[Tuple[Dict[str, str], Dict[str, str]]] = [
     ),
 ]
 
-_LLM_CACHE: Dict[str, Llama | None] = {"instance": None}
+_LLM_CACHE: Dict[str, Any] = {"instance": None}
 
 
-def _load_llm() -> Llama:
+def _load_llm() -> Any:
     """Download (or reuse) the GGUF file and initialize llama.cpp.
 
-    :returns: A cached :class:`llama_cpp.Llama` instance.
+    :returns: A cached :class:`llama_cpp.Llama` instance, or ``None`` when
+        optional LLM runtime dependencies are not installed.
     """
     cached_llm = _LLM_CACHE["instance"]
     if cached_llm is not None:
         return cached_llm
+
+    if Llama is None or hf_hub_download is None:
+        return None
 
     model_path = hf_hub_download(
         repo_id=MODEL_REPO,
@@ -262,6 +275,14 @@ def _call_llm(program_text: str) -> Dict[str, str]:
     :returns: Dict with standardized program/university fields.
     """
     llm = _load_llm()
+    if llm is None:
+        std_prog, std_uni = _split_fallback(program_text)
+        std_prog = _post_normalize_program(std_prog)
+        std_uni = _post_normalize_university(std_uni)
+        return {
+            "standardized_program": std_prog,
+            "standardized_university": std_uni,
+        }
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for x_in, x_out in FEW_SHOTS:
@@ -281,20 +302,20 @@ def _call_llm(program_text: str) -> Dict[str, str]:
         }
     )
 
-    out = llm.create_chat_completion(
-        messages=messages,
-        temperature=0.0,
-        max_tokens=128,
-        top_p=1.0,
-    )
-
-    text = (out["choices"][0]["message"]["content"] or "").strip()
     try:
+        out = llm.create_chat_completion(
+            messages=messages,
+            temperature=0.0,
+            max_tokens=128,
+            top_p=1.0,
+        )
+
+        text = (out["choices"][0]["message"]["content"] or "").strip()
         match = JSON_OBJ_RE.search(text)
         obj = json.loads(match.group(0) if match else text)
         std_prog = str(obj.get("standardized_program", "")).strip()
         std_uni = str(obj.get("standardized_university", "")).strip()
-    except LLM_OUTPUT_PARSE_ERRORS:
+    except (*LLM_OUTPUT_PARSE_ERRORS, *STANDARDIZE_ROW_ERRORS):
         std_prog, std_uni = _split_fallback(program_text)
 
     std_prog = _post_normalize_program(std_prog)
@@ -384,14 +405,33 @@ def _cli_process_file(
     :param append: If True, append to output file.
     :param to_stdout: If True, write JSONL to stdout.
     """
-    with open(in_path, "r", encoding="utf-8") as f:
+    base_dir = os.path.abspath(os.path.expanduser(os.getenv("LLM_IO_BASE_DIR", os.getcwd())))
+
+    raw_in_name = os.path.expanduser((in_path or "").strip())
+    if not raw_in_name:
+        raise ValueError("Input filename is required.")
+    if os.path.basename(raw_in_name) != raw_in_name:
+        raise ValueError("Input path must be a filename without directories.")
+    if not SAFE_FILENAME_RE.fullmatch(raw_in_name):
+        raise ValueError("Input filename contains invalid characters.")
+
+    safe_in_path = os.path.join(base_dir, raw_in_name)
+    if not os.path.exists(safe_in_path):
+        raise FileNotFoundError(f"Input file not found: {safe_in_path}")
+    with open(safe_in_path, "r", encoding="utf-8") as f:
         rows = _normalize_input(json.load(f))
 
     sink_context = nullcontext(sys.stdout)
     if not to_stdout:
-        out_path = out_path or (in_path + ".jsonl")
+        raw_out_name = os.path.expanduser((out_path or (raw_in_name + ".jsonl")).strip())
+        if os.path.basename(raw_out_name) != raw_out_name:
+            raise ValueError("Output path must be a filename without directories.")
+        if not SAFE_FILENAME_RE.fullmatch(raw_out_name):
+            raise ValueError("Output filename contains invalid characters.")
+
+        safe_out_path = os.path.join(base_dir, raw_out_name)
         mode = "a" if append else "w"
-        sink_context = open(out_path, mode, encoding="utf-8")
+        sink_context = open(safe_out_path, mode, encoding="utf-8")
 
     with sink_context as sink:
         for row in rows:
@@ -443,9 +483,12 @@ if __name__ == "__main__":
         port = int(os.getenv("PORT", "8000"))
         app.run(host="0.0.0.0", port=port, debug=False)
     else:
-        _cli_process_file(
-            in_path=args.file,
-            out_path=args.out,
-            append=bool(args.append),
-            to_stdout=bool(args.stdout),
-        )
+        try:
+            _cli_process_file(
+                in_path=args.file,
+                out_path=args.out,
+                append=bool(args.append),
+                to_stdout=bool(args.stdout),
+            )
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            parser.error(str(exc))

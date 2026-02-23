@@ -15,8 +15,8 @@ This project is a Flask-based web application that allows users to view and anal
 
 - Python 3.13 (matches CI)
 - PostgreSQL (local or CI)
-- Optional LLM standardizer dependencies in `src/llm_hosting/requirements.txt`
-  (kept out of main app requirements for isolation)
+- Optional LLM standardizer service dependencies in `src/llm_hosting/requirements.txt`
+  (fallback-only mode; no local llama runtime required)
 - Database environment configuration (choose one):
   - `DATABASE_URL` (PostgreSQL connection string), or
   - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
@@ -48,7 +48,7 @@ python3 -m venv .venv
 python3 -m pip install --upgrade pip setuptools wheel
 python3 -m pip install -r requirements.txt
 
-# Optional: isolated LLM environment (keeps llama-cpp out of main app path)
+# Optional: isolated LLM standardizer environment
 python3 -m venv .venv-llm
 . .venv-llm/bin/activate
 python3 -m pip install --upgrade pip setuptools wheel
@@ -65,7 +65,7 @@ uv venv .venv
 . .venv/bin/activate
 uv pip install -r requirements.txt
 
-# Optional: isolated LLM environment (keeps llama-cpp out of main app path)
+# Optional: isolated LLM standardizer environment
 uv venv .venv-llm
 . .venv-llm/bin/activate
 uv pip install -r src/llm_hosting/requirements.txt
