@@ -21,10 +21,14 @@ Route details:
 
 - ``GET /``: renders the analysis landing page.
 - ``GET /analysis``: renders the same analysis view.
-- ``POST /pull-data``: runs the scrape/clean/load pipeline and returns JSON.
-  Returns ``202`` with ``{"ok": true}`` when successful and ``409`` when busy.
-- ``POST /update-analysis``: refreshes metrics (no-op) and returns JSON.
-  Returns ``200`` with ``{"ok": true}`` when successful and ``409`` when busy.
+- ``POST /pull-data``: JSON/API callers (default when ``Accept`` is not
+  ``text/html``) run the scrape/clean/load pipeline in-request and return
+  ``202`` with ``{"ok": true}`` on success, ``409`` when busy, and ``500`` on
+  pipeline error. HTML form callers (``Accept: text/html``) start a background
+  pull and return a ``303`` redirect to ``/``.
+- ``POST /update-analysis``: sets a one-time refresh message after a completed
+  pull and returns a ``303`` redirect to ``/`` when idle/done, or ``409`` with
+  ``{"busy": true}`` when a pull is running.
 
 User interaction flow:
 
@@ -50,7 +54,7 @@ ETL layer responsibilities:
 
 DB layer responsibilities:
 
-- Creates and maintains the ``applicants`` table schema.
+- Enforces that ``public.applicants`` already exists before runtime inserts.
 - Inserts new rows idempotently using URL-based deduplication.
 - Provides SQL metrics for the analysis page.
 
@@ -110,7 +114,9 @@ Common fakes used in tests:
 Required environment variables
 ------------------------------
 
-- ``DATABASE_URL``: PostgreSQL connection string used by the app and scripts.
+- Database configuration (choose one approach):
+  - ``DATABASE_URL`` (single connection string), or
+  - all of ``DB_HOST``, ``DB_PORT``, ``DB_NAME``, ``DB_USER``, ``DB_PASSWORD``.
 
 Setup
 -----
@@ -124,9 +130,17 @@ Setup
 
       python3 -m pip install -r requirements.txt
 
-3. Set ``DATABASE_URL`` (required)::
+3. Configure database connection (required)::
 
       export DATABASE_URL="postgresql://localhost/grad_cafe"
+
+   Alternatively::
+
+      export DB_HOST="localhost"
+      export DB_PORT="5432"
+      export DB_NAME="grad_cafe"
+      export DB_USER="grad_cafe_app"
+      export DB_PASSWORD="your_password"
 
 4. Run the Flask app::
 
