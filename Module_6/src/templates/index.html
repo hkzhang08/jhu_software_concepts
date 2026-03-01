@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grad School Cafe Data Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-header">
+        <div class="title">Grad School Cafe Data Analysis</div>
+        <div class="rule"></div>
+      </header>
+
+      <section class="action-grid">
+        <div class="action-card">
+          <div class="action-note">
+            Pull Data updates the database with the latest GradCafe results. When clicked, it
+            will search GradCafe for new records, add any new data to the database, and make
+            those updates available for analysis on this site
+          </div>
+          <form class="pull-form" method="post" action="{{ url_for('pull_data') }}">
+            <button id="pull-data-btn" class="pull-button" type="submit" data-testid="pull-data-btn" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
+              Pull Data
+            </button>
+          </form>
+        </div>
+        <div class="action-card">
+          <div class="action-note">
+            Click Update Analysis to refresh this page with the most up-to-date results currently available
+            in the database. If Pull Data is actively running, this button will be temporarily disabled.
+            Once the data pull is complete, you can use Update Analysis to view the latest information.
+          </div>
+          <form class="pull-form" method="post" action="{{ url_for('update_analysis') }}">
+            <button id="update-analysis-btn" class="update-button" type="submit" data-testid="update-analysis-btn" {% if pull_state and pull_state.status == "running" %}disabled{% endif %}>
+              Update Analysis
+            </button>
+          </form>
+        </div>
+      </section>
+      <div
+        class="pull-status{% if not pull_state or not pull_state.message %} pull-status-hidden{% endif %}"
+        data-testid="pull-status"
+        data-pull-status="{{ pull_state.status if pull_state else 'idle' }}"
+        data-pull-message="{{ pull_state.message if pull_state else '' }}"
+        data-pull-status-url="{{ url_for('pull_status') }}"
+      >
+        {{ pull_state.message if pull_state else '' }}
+      </div>
+      {% if analysis_message %}
+        <div class="analysis-status" data-testid="analysis-status">
+          {{ analysis_message }}
+        </div>
+      {% endif %}
+
+      <section class="analysis">
+        <div class="section-title">Analysis</div>
+        <div class="cards">
+          {% for item in questions %}
+            <div class="card">
+              <div class="card-question">{{ item.question }}</div>
+              <div class="card-answer">
+                <div class="answer-label">Answer:</div>
+                {% if item.answer_lines %}
+                  <div class="answer-lines">
+                    {% for line in item.answer_lines %}
+                      <div class="answer-line">{{ line }}</div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="answer-text">{{ item.answer }}</div>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+    <script>
+      (function () {
+        const statusEl = document.querySelector("[data-testid='pull-status']");
+        if (!statusEl) {
+          return;
+        }
+
+        const pullButton = document.querySelector("[data-testid='pull-data-btn']");
+        const updateButton = document.querySelector("[data-testid='update-analysis-btn']");
+        const statusUrl = statusEl.dataset.pullStatusUrl;
+        let intervalId = null;
+
+        function renderStatus(state) {
+          const status = state.status || "idle";
+          const message = state.message || "";
+          const isRunning = status === "running";
+          statusEl.textContent = message;
+          statusEl.classList.toggle("pull-status-hidden", message === "");
+
+          if (pullButton) {
+            pullButton.disabled = isRunning;
+          }
+          if (updateButton) {
+            updateButton.disabled = isRunning;
+          }
+          return isRunning;
+        }
+
+        function pollStatus() {
+          fetch(statusUrl, { headers: { Accept: "application/json" } })
+            .then((response) => response.json())
+            .then((state) => {
+              const isRunning = renderStatus(state);
+              if (!isRunning && intervalId !== null) {
+                window.clearInterval(intervalId);
+                intervalId = null;
+              }
+            })
+            .catch(() => {
+              // Keep the last known message visible if polling fails.
+            });
+        }
+
+        function queueAction(form) {
+          fetch(form.action, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          })
+            .then(async (response) => {
+              const payload = await response.json().catch(() => ({}));
+              if (response.status === 202) {
+                renderStatus({
+                  status: payload.status || "queued",
+                  message: payload.message || "Request queued.",
+                });
+                return;
+              }
+
+              if (response.status === 409 && payload.busy) {
+                renderStatus({
+                  status: "running",
+                  message: payload.message || "A request is already in progress.",
+                });
+                if (intervalId === null) {
+                  intervalId = window.setInterval(pollStatus, 2000);
+                }
+                return;
+              }
+
+              window.location.reload();
+            })
+            .catch(() => {
+              window.location.reload();
+            });
+        }
+
+        const initialState = {
+          status: statusEl.dataset.pullStatus || "idle",
+          message: statusEl.dataset.pullMessage || "",
+        };
+
+        document.querySelectorAll(".pull-form").forEach((form) => {
+          form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            queueAction(form);
+          });
+        });
+
+        if (renderStatus(initialState)) {
+          intervalId = window.setInterval(pollStatus, 2000);
+          pollStatus();
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+sphinx
+flask==3.1.3
+werkzeug==3.1.6
+psycopg[binary]
+beautifulsoup4

@@ -1,0 +1,29 @@
+[
+  {
+    "applicant_id": "A1001",
+    "name": "Ava Thompson",
+    "email": "ava.thompson@example.com",
+    "program": "MS Computer Science",
+    "university": "Johns Hopkins University",
+    "status": "cleaned",
+    "last_processed_at": "2026-02-23T00:00:00+00:00"
+  },
+  {
+    "applicant_id": "A1002",
+    "name": "Noah Martinez",
+    "email": "noah.martinez@example.com",
+    "program": "MS Data Science",
+    "university": "Johns Hopkins University",
+    "status": "cleaned",
+    "last_processed_at": "2026-02-23T00:00:00+00:00"
+  },
+  {
+    "applicant_id": "A1003",
+    "name": "Mia Patel",
+    "email": "mia.patel@example.com",
+    "program": "MS Information Systems",
+    "university": "Johns Hopkins University",
+    "status": "cleaned",
+    "last_processed_at": "2026-02-23T00:00:00+00:00"
+  }
+]

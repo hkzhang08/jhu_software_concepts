@@ -1,0 +1,117 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
+      POSTGRES_DB: ${POSTGRES_DB:-app_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_legacy:/var/lib/postgresql/data
+      - ./Module_6/db/init_legacy.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-app_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-app_password}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: ./Module_6
+      dockerfile: Dockerfile.webui
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-development}
+      PORT: 8080
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-app_db}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-app_db}
+      DB_USER: ${POSTGRES_USER:-app_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app_user}:${RABBITMQ_PASSWORD:-app_password}@rabbitmq:5672/%2F
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-app_user}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-app_password}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-applicant.events}
+      RABBITMQ_QUEUE: ${RABBITMQ_QUEUE:-applicant.ingest}
+      RABBITMQ_ROUTING_KEY: ${RABBITMQ_ROUTING_KEY:-applicant.created}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  seed:
+    build:
+      context: ./Module_6
+      dockerfile: Dockerfile.webui
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-app_db}
+      LLM_EXTEND_APPLICANT_PATH: /app/src/llm_extend_applicant_data.json
+      LLM_NEW_APPLICANT_PATH: /app/src/llm_new_applicant.json
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "/app/src/load_data.py"]
+    restart: "no"
+
+  worker:
+    build:
+      context: ./Module_6
+      dockerfile: Dockerfile.workerfull
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-app_db}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-app_db}
+      DB_USER: ${POSTGRES_USER:-app_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-app_user}:${RABBITMQ_PASSWORD:-app_password}@rabbitmq:5672/%2F
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-app_user}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-app_password}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-applicant.events}
+      RABBITMQ_QUEUE: ${RABBITMQ_QUEUE:-applicant.ingest}
+      RABBITMQ_ROUTING_KEY: ${RABBITMQ_ROUTING_KEY:-applicant.created}
+      DATA_FILE: /app/src/llm_new_applicant.json
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('rabbitmq', 5672), 5); s.close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata_legacy:

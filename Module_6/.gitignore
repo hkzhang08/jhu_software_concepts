@@ -1,0 +1,31 @@
+# OS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+.env
+.env/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Builds
+build/
+dist/
+
+# Sphinx
+/docs/_build/
